@@ -8,10 +8,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest    
-    permissions:
-      actions: write
-      contents: read
-      packages: write
+    permissions: write-all
       
     steps:
     - name: Checkout partial repository
