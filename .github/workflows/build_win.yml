@@ -7,7 +7,12 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-latest    
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+      
     steps:
     - name: Checkout partial repository
       if: github.ref_type == 'tag'
@@ -79,7 +84,7 @@ jobs:
       with:
         files: dist/MouseTracks.exe
       env:
-        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload executable as artifact
       uses: actions/upload-artifact@v4
