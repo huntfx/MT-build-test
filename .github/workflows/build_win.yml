@@ -79,7 +79,7 @@ jobs:
       with:
         files: dist/MouseTracks.exe
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
     - name: Upload executable as artifact
       uses: actions/upload-artifact@v4
