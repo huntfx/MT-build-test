@@ -47,6 +47,10 @@ jobs:
       shell: cmd
       run: |
         python -m venv .venv
+        
+    - name: Create build folder
+      shell: cmd
+      run: |
         mkdir build
 
     - name: Install main dependencies
