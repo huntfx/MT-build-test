@@ -90,7 +90,7 @@ jobs:
     - name: Create version.rc
       shell: cmd
       run: |
-        mkdir build
+        if not exist build mkdir build
         call .venv\Scripts\activate
         pyivf-make_version --outfile "build\version.rc" --version %VERSION% --file-description "MouseTracks %VERSION%" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "MouseTracks.exe" --product-name "MouseTracks %VERSION%"
         call .venv\Scripts\deactivate
