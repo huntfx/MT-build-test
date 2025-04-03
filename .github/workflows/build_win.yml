@@ -5,11 +5,13 @@ on:
     types: [published]
   workflow_dispatch:
 
+# Define the PyInstaller version you want to build the bootloader for
+env:
+  PYINSTALLER_VERSION: v6.11.1 # Match the version in your .bat file
+
 jobs:
   build:
-    runs-on: windows-latest    
-    permissions: write-all
-      
+    runs-on: windows-latest
     steps:
     - name: Checkout partial repository
       if: github.ref_type == 'tag'
@@ -19,8 +21,8 @@ jobs:
       if: github.ref_type != 'tag'
       uses: actions/checkout@v4
       with:
-       fetch-depth: 0
-       fetch-tags: True
+        fetch-depth: 0
+        fetch-tags: True
 
     - name: Get version from current tag
       if: github.ref_type == 'tag'
@@ -51,16 +53,50 @@ jobs:
       shell: cmd
       run: |
         call .venv\Scripts\activate
-        python -m pip install --upgrade pip
+        python -m pip install --upgrade pip wheel # Ensure wheel is installed/upgraded
         python -m pip install --upgrade -r requirements.txt
-        python -m pip install --upgrade -r requirements-build.txt
+        # Install build requirements *except* PyInstaller itself initially, if listed
+        # Or ensure requirements-build-pyinstaller.txt contains only things like pyinstaller-version-file
+        python -m pip install --upgrade -r requirements-build-pyinstaller.txt
         call .venv\Scripts\deactivate
+
+    # --- New Step to Build Bootloader ---
+    - name: Build PyInstaller Bootloader (${{ env.PYINSTALLER_VERSION }})
+      shell: cmd
+      run: |
+        call .venv\Scripts\activate
+
+        echo --- Cleaning previous PyInstaller build directory ---
+        if exist build\pyinstaller rmdir build\pyinstaller /s /q
+
+        echo --- Cloning PyInstaller ${{ env.PYINSTALLER_VERSION }} ---
+        git clone --branch ${{ env.PYINSTALLER_VERSION }} --depth 1 https://github.com/pyinstaller/pyinstaller.git build/pyinstaller
+        if errorlevel 1 exit /b 1  # Exit if clone fails
+
+        echo --- Building Bootloader ---
+        cd build\pyinstaller\bootloader
+        python ./waf distclean all
+        if errorlevel 1 exit /b 1  # Exit if build fails
+        cd ..
+
+        echo --- Installing Custom PyInstaller from build directory ---
+        pip install .
+        if errorlevel 1 exit /b 1  # Exit if install fails
+
+        echo --- Installation Complete. PyInstaller details: ---
+        pip show pyinstaller
+
+        cd ..\.. # Return to the repository root
+        call deactivate
+        echo --- Bootloader build and PyInstaller install complete ---
+    # --- End of New Step ---
 
     - name: Create version.rc
       shell: cmd
       run: |
-        mkdir build
+        mkdir build # Ensure build directory exists (might have been removed by the rmdir above if it only contained pyinstaller)
         call .venv\Scripts\activate
+        # This tool needs to be installed via requirements-build-pyinstaller.txt
         pyivf-make_version --outfile "build\version.rc" --version %VERSION% --file-description "MouseTracks %VERSION%" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "MouseTracks.exe" --product-name "MouseTracks %VERSION%"
         call .venv\Scripts\deactivate
         if not exist build\version.rc (
@@ -68,10 +104,15 @@ jobs:
           exit /b 1
         )
 
-    - name: Build executable
+    - name: Build executable with custom bootloader
       shell: cmd
       run: |
         call .venv\Scripts\activate
+        echo --- Using PyInstaller from: ---
+        where pyinstaller
+        echo --- PyInstaller version: ---
+        pyinstaller --version
+        echo --- Building Executable ---
         pyinstaller MouseTracks.spec
         call .venv\Scripts\deactivate
 
@@ -86,4 +127,5 @@ jobs:
     - name: Upload executable as artifact
       uses: actions/upload-artifact@v4
       with:
+        name: MouseTracks-Windows-${{ env.VERSION }} # Add version to artifact name
         path: dist\MouseTracks.exe
