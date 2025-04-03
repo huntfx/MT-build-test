@@ -60,7 +60,6 @@ jobs:
         python -m pip install --upgrade -r requirements-build-pyinstaller.txt
         call .venv\Scripts\deactivate
 
-    # --- New Step to Build Bootloader ---
     - name: Build PyInstaller Bootloader (${{ env.PYINSTALLER_VERSION }})
       shell: cmd
       run: |
@@ -86,17 +85,14 @@ jobs:
         echo --- Installation Complete. PyInstaller details: ---
         pip show pyinstaller
 
-        cd ..\.. # Return to the repository root
         call deactivate
         echo --- Bootloader build and PyInstaller install complete ---
-    # --- End of New Step ---
 
     - name: Create version.rc
       shell: cmd
       run: |
-        mkdir build # Ensure build directory exists (might have been removed by the rmdir above if it only contained pyinstaller)
         call .venv\Scripts\activate
-        # This tool needs to be installed via requirements-build-pyinstaller.txt
+        # mkdir build
         pyivf-make_version --outfile "build\version.rc" --version %VERSION% --file-description "MouseTracks %VERSION%" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "MouseTracks.exe" --product-name "MouseTracks %VERSION%"
         call .venv\Scripts\deactivate
         if not exist build\version.rc (
