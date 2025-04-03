@@ -52,6 +52,7 @@ jobs:
     - name: Create build folder
       shell: cmd
       run: |
+        if exist build rmdir build /s /q
         mkdir build
 
     - name: Update components
@@ -65,9 +66,6 @@ jobs:
       shell: cmd
       run: |
         call .venv\Scripts\activate
-
-        echo --- Cleaning previous PyInstaller build directory ---
-        if exist build\pyinstaller rmdir build\pyinstaller /s /q
 
         echo --- Cloning PyInstaller ${{ env.PYINSTALLER_VERSION }} ---
         git clone --branch ${{ env.PYINSTALLER_VERSION }} --depth 1 https://github.com/pyinstaller/pyinstaller.git build/pyinstaller
