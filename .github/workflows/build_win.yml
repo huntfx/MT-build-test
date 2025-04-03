@@ -54,12 +54,11 @@ jobs:
       run: |
         mkdir build
 
-    - name: Install main dependencies
+    - name: Update components
       shell: cmd
       run: |
         call .venv\Scripts\activate
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade -r requirements.txt
+        python -m pip install --upgrade pip wheel
         call .venv\Scripts\deactivate
         
     - name: Build PyInstaller Bootloader (${{ env.PYINSTALLER_VERSION }})
@@ -85,11 +84,13 @@ jobs:
         if errorlevel 1 exit /b 1
 
         call deactivate
+        echo --- Bootloader build and PyInstaller install complete ---
 
-    - name: Install build dependencies
+    - name: Install dependencies
       shell: cmd
       run: |
         call .venv\Scripts\activate
+        python -m pip install --upgrade -r requirements.txt
         python -m pip install --upgrade -r requirements-build-pyinstaller.txt
         call .venv\Scripts\deactivate
 
