@@ -23,7 +23,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
     upx=True,
-    upx_exclude=['resources/build/scipy/ndimage/_nd_image.cp311-win_amd64.dll.a'],
+    upx_exclude=['*resources/build/scipy/ndimage/_nd_image.cp311-win_amd64.dll.a'],
 )
 pyz = PYZ(a.pure)
 
