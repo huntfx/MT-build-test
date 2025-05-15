@@ -102,7 +102,25 @@ jobs:
           echo ERROR: version.rc not created!
           exit /b 1
         )
+        
+    - name: Download and install UPX 5.0.1
+      # you can use either powershell or cmd; powershell is more concise for web downloads + unzipping
+      shell: powershell
+      run: |
+        # 1. Download
+        Invoke-WebRequest `
+          -Uri https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-win64.zip `
+          -OutFile upx.zip
 
+        # 2. Unzip
+        Expand-Archive -Path upx.zip -DestinationPath upx
+
+        # 3. Add to PATH for the rest of the job
+        $upxDir = "$(Resolve-Path upx\upx-5.0.1-win64)"
+        Write-Host "UPX will live in: $upxDir"
+        # GitHub Actions’ recommended way to update PATH:
+        echo "PATH=$upxDir;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+        
     - name: Build executable
       shell: cmd
       run: |
