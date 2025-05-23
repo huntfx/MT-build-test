@@ -16,93 +16,93 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetches all history and tags, crucial for checking existing tags
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Fetches all history and tags, crucial for checking existing tags
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11' # Or your preferred Python version, matching your build workflow
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11' # Or your preferred Python version, matching your build workflow
 
-      - name: Extract version details from version.py
-        id: extract_version
-        shell: python
-        run: |
-          import re
-          import os
+    - name: Extract version details from version.py
+      id: extract_version
+      shell: python
+      run: |
+        import re
+        import os
 
-          version_file_path = 'mousetracks2/version.py' # Ensure this path is correct
-          try:
-              with open(version_file_path, 'r') as f:
-                  version_content = f.read()
-          except FileNotFoundError:
-              print(f"::error file={version_file_path}::File not found at {version_file_path}")
-              exit(1)
-
-          match = re.search(r"^__version__\s*=\s*['\"]([^'\"]*)['\"]", version_content, re.M)
-
-          if not match:
-            print(f"::error file={version_file_path}::Could not find __version__ string in {version_file_path}. Expected format: __version__ = '1.0.0'")
+        version_file_path = 'mousetracks2/version.py' # Ensure this path is correct
+        try:
+            with open(version_file_path, 'r') as f:
+                version_content = f.read()
+        except FileNotFoundError:
+            print(f"::error file={version_file_path}::File not found at {version_file_path}")
             exit(1)
 
-          version = match.group(1)
-          tag_name = f"v{version}"  # e.g., v1.0.0
-          release_name = f"MouseTracks {version}" # e.g., MouseTracks 2.0.0
+        match = re.search(r"^__version__\s*=\s*['\"]([^'\"]*)['\"]", version_content, re.M)
 
-          print(f"Extracted Version: {version}")
-          print(f"Generated Tag Name: {tag_name}")
-          print(f"Generated Release Name: {release_name}")
+        if not match:
+          print(f"::error file={version_file_path}::Could not find __version__ string in {version_file_path}. Expected format: __version__ = '1.0.0'")
+          exit(1)
 
-          # Make version, tag_name, and release_name available to subsequent steps via GITHUB_OUTPUT
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-              print(f"version={version}", file=fh)
-              print(f"tag_name={tag_name}", file=fh)
-              print(f"release_name={release_name}", file=fh)
+        version = match.group(1)
+        tag_name = f"v{version}"  # e.g., v1.0.0
+        release_name = f"MouseTracks {version}" # e.g., MouseTracks 2.0.0
 
-      - name: Check if tag already exists
-        shell: bash
-        run: |
-          TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
-          echo "Checking for existing tag: $TAG_NAME"
-          # git rev-parse exits with non-zero status if tag doesn't exist
-          if git rev-parse --verify "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG_NAME already exists. Halting workflow to prevent duplicate release."
-            echo "Please ensure __version__ in 'mousetracks2/version.py' is incremented to a new version."
-            exit 1
-          else
-            echo "Tag $TAG_NAME does not exist. Proceeding to create tag and release."
-          fi
+        print(f"Extracted Version: {version}")
+        print(f"Generated Tag Name: {tag_name}")
+        print(f"Generated Release Name: {release_name}")
 
-      - name: Configure Git committer
-        shell: bash
-        run: |
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+        # Make version, tag_name, and release_name available to subsequent steps via GITHUB_OUTPUT
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+            print(f"version={version}", file=fh)
+            print(f"tag_name={tag_name}", file=fh)
+            print(f"release_name={release_name}", file=fh)
 
-      - name: Create Git Tag and Push
-        shell: bash
-        run: |
-          TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
-          COMMIT_SHA="${{ github.sha }}" # The commit that updated version.py
-          RELEASE_NAME="${{ steps.extract_version.outputs.release_name }}"
+    - name: Check if tag already exists
+      shell: bash
+      run: |
+        TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
+        echo "Checking for existing tag: $TAG_NAME"
+        # git rev-parse exits with non-zero status if tag doesn't exist
+        if git rev-parse --verify "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+          echo "::error::Tag $TAG_NAME already exists. Halting workflow to prevent duplicate release."
+          echo "Please ensure __version__ in 'mousetracks2/version.py' is incremented to a new version."
+          exit 1
+        else
+          echo "Tag $TAG_NAME does not exist. Proceeding to create tag and release."
+        fi
 
-          echo "Creating annotated tag $TAG_NAME for commit $COMMIT_SHA"
-          # Create an annotated tag (recommended for releases)
-          git tag -a "$TAG_NAME" -m "$RELEASE_NAME - triggered by commit changing version.py" "$COMMIT_SHA"
+    - name: Configure Git committer
+      shell: bash
+      run: |
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
 
-          echo "Pushing tag $TAG_NAME to origin"
-          git push origin "$TAG_NAME"
+    - name: Create Git Tag and Push
+      shell: bash
+      run: |
+        TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
+        COMMIT_SHA="${{ github.sha }}" # The commit that updated version.py
+        RELEASE_NAME="${{ steps.extract_version.outputs.release_name }}"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.CREATE_RELEASE_TOKEN }}  # Permissions: Contents RW
-        with:
-          tag_name: ${{ steps.extract_version.outputs.tag_name }}
-          name: ${{ steps.extract_version.outputs.release_name }}
-          body: ${{ github.event.head_commit.message }}
-          draft: false
-          prerelease: false
+        echo "Creating annotated tag $TAG_NAME for commit $COMMIT_SHA"
+        # Create an annotated tag (recommended for releases)
+        git tag -a "$TAG_NAME" -m "$RELEASE_NAME - triggered by commit changing version.py" "$COMMIT_SHA"
+
+        echo "Pushing tag $TAG_NAME to origin"
+        git push origin "$TAG_NAME"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.CREATE_RELEASE_TOKEN }}  # Permissions: Contents RW
+      with:
+        tag_name: ${{ steps.extract_version.outputs.tag_name }}
+        name: ${{ steps.extract_version.outputs.release_name }}
+        body: ${{ github.event.head_commit.message }}
+        draft: false
+        prerelease: false
 

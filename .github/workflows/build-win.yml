@@ -24,21 +24,6 @@ jobs:
        fetch-depth: 0
        fetch-tags: True
 
-    - name: Get version from current tag
-      if: github.ref_type == 'tag'
-      shell: bash
-      run: |
-          echo "VERSION=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
-          echo "Version: $GITHUB_REF_NAME"
-
-    - name: Get version from latest tag
-      if: github.ref_type != 'tag'
-      shell: bash
-      run: |
-        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0")
-        echo "VERSION=$LATEST_TAG" >> "$GITHUB_ENV"
-        echo "Version: $LATEST_TAG"
-
     - name: Set up Python 3.11
       uses: actions/setup-python@v4
       with:
@@ -91,6 +76,31 @@ jobs:
         python -m pip install --upgrade -r requirements.txt
         python -m pip install --upgrade -r requirements-build-pyinstaller.txt
         call .venv\Scripts\deactivate
+
+    - name: Set version details from tag
+      if: github.ref_type == 'tag'
+      shell: python
+      run: |
+        import os
+
+        tag_name = os.environ['GITHUB_REF_NAME']  # eg. v2.0.0
+        version = tag_name.lstrip('v')  # eg. 2.0.0
+
+        print(f"Tag: {tag_name}")
+        print(f"Version: {version}")
+
+        with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
+          print(f"VERSION={version}", file=fh_env)
+
+    - name: Extract version details from version.py
+      if: github.ref_type != 'tag'
+      shell: python
+      run: |
+        import os
+        from mousetracks2 import __version__ as version
+        print(f"Version: {version}")
+        with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
+          print(f"VERSION={version}", file=fh_env)
 
     - name: Create version.rc
       shell: cmd
