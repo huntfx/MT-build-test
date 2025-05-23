@@ -9,7 +9,8 @@ This process includes:
 3. The release notes will be based on the commit message of this change.
 4. An executable will be built and attached to the release.
 
-The recommend commit message format is as follows:
+Some processing will be done on the commit message so the format can be
+kept simple. The recommend commit message format is as follows:
     Created new option.
     # Enhancements
     - New option

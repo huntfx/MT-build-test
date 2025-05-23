@@ -19,6 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: True
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
@@ -108,7 +109,7 @@ jobs:
           delim = 'EOF_COMMIT_BODY'  # Can be any unique string
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'release_body<<{delim}', file=f)
-            print(f'Release {os.environ["TAG_NAME"]}', file=f)
+            print(f'## Release {os.environ["TAG_NAME"]}', file=f)
             print(comment, file=f)
             print(delim, file=f)
 
