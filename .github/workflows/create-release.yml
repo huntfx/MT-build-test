@@ -87,11 +87,13 @@ jobs:
         env:
           # Pass the full commit message to the Python script as an environment variable
           FULL_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          TAG_NAME: ${{ steps.extract_version.outputs.tag_name }}
         run: |
           import os
           message = os.environ['FULL_COMMIT_MESSAGE']
           subject, *comment_lines = message.splitlines()
           comment = '\n'.join(comment_lines).strip()
+          comment = comment.replace('\n# ', '\n### ').replace('\n## ', '\n ###')
 
           print("Full commit message received by Python script:")
           print("<<<<<<<<<<")
@@ -105,8 +107,8 @@ jobs:
 
           delim = 'EOF_COMMIT_BODY'  # Can be any unique string
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-            # Using a delimiter (EOF here, can be any unique string) for multiline output
             print(f'release_body<<{delim}', file=f)
+            print(f'Release {os.environ["TAG_NAME"]}', file=f)
             print(comment, file=f)
             print(delim, file=f)
 
