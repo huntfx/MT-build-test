@@ -90,6 +90,8 @@ jobs:
           FULL_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           import os
+          import datetime
+
           message = os.environ['FULL_COMMIT_MESSAGE']
           subject, *comment_lines = message.splitlines()
           comment = '\n'.join(comment_lines).strip()
@@ -105,10 +107,12 @@ jobs:
           print(comment)
           print(">>>>>>>>>>")
 
+          now = datetime.now().strftime(f"%b {day}, %Y")
+
           delim = 'EOF_COMMIT_BODY'  # Can be any unique string
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'release_body<<{delim}', file=f)
-            print(f'## Release Notes', file=f)
+            print(f'## Release Notes ({now})', file=f)
             print(comment, file=f)
             print(delim, file=f)
 
