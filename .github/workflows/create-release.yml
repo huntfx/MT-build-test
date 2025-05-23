@@ -3,7 +3,7 @@ name: Create Release on Version Update
 on:
   push:
     branches:
-      - main  # Or your primary development branch (e.g., master)
+      - master  # Or your primary development branch (e.g., master)
     paths:
       - 'mousetracks2/version.py' # Ensure this path is correct from the root of your repository
 
