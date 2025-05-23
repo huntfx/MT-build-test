@@ -66,11 +66,11 @@ jobs:
             echo "Tag $TAG_NAME does not exist. Proceeding to create tag and release."
           fi
 
-      # - name: Configure Git committer
-      #   shell: bash
-      #   run: |
-      #     git config user.name "${{ github.actor }}"
-      #     git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+      - name: Configure Git committer
+        shell: bash
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
 
       - name: Create Git Tag and Push
         shell: bash
