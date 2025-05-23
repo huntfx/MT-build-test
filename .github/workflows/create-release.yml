@@ -34,14 +34,20 @@ jobs:
         shell: cmd
         run: |
           call .venv\Scripts\activate
+
           python -m pip install --upgrade pip wheel
+          if errorlevel 1 exit /b 1
+
           call .venv\Scripts\deactivate
 
       - name: Install dependencies
         shell: cmd
         run: |
           call .venv\Scripts\activate
+
           python -m pip install --upgrade -r requirements.txt
+          if errorlevel 1 exit /b 1
+
           call .venv\Scripts\deactivate
 
       - name: Get version details from file
@@ -49,7 +55,10 @@ jobs:
         shell: cmd
         run: |
           call .venv\Scripts\activate
+
           python .github/scripts/get-version.py
+          if errorlevel 1 exit /b 1
+
           call .venv\Scripts\deactivate
 
       - name: Check if tag already exists
@@ -105,7 +114,7 @@ jobs:
         shell: bash
         run: |
           TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
-          COMMIT_SHA="${{ github.sha }}" # The commit that updated version.py
+          COMMIT_SHA="${{ github.sha }}"
           RELEASE_NAME="${{ steps.extract_version.outputs.release_name }}"
 
           echo "Creating annotated tag $TAG_NAME for commit $COMMIT_SHA"
