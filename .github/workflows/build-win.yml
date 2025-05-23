@@ -2,7 +2,7 @@ name: Build (Windows)
 
 on:
   release:
-    types: [published, created, released]
+    types: [published]
   workflow_dispatch:
 
 env:
@@ -130,7 +130,7 @@ jobs:
       with:
         files: dist/MouseTracks.exe
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}  # Permissions: Contents RW
 
     - name: Upload executable as artifact
       uses: actions/upload-artifact@v4
