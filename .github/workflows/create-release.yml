@@ -13,7 +13,7 @@ permissions:
 jobs:
   create_release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout full repository
         uses: actions/checkout@v4
