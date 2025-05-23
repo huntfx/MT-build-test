@@ -90,7 +90,7 @@ jobs:
           FULL_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           import os
-          import datetime
+          from datetime import datetime
 
           message = os.environ['FULL_COMMIT_MESSAGE']
           subject, *comment_lines = message.splitlines()
