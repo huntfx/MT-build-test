@@ -16,11 +16,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # 32 bit python not included as PySide6 not
         include:
           - bits: 64
             architecture: x64
-          - bits: 32
-            architecture: x86
+          - bits: 64
+            architecture: arm64
 
     steps:
       - name: Checkout partial repository
