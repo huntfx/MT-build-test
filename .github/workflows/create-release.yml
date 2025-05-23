@@ -97,11 +97,12 @@ jobs:
           print("---")
           # --- End Logging ---
 
+          delim = 'EOF_COMMIT_BODY'  # Can be any unique string
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             # Using a delimiter (EOF here, can be any unique string) for multiline output
-            f.write(f"release_body<<EOF_COMMIT_BODY\n")
-            f.write(f"{body}\n") # Write the potentially multiline body
-            f.write(f"EOF_COMMIT_BODY\n")
+            print(f'release_body<<{delim}', file=f)
+            print(comment, file=f)
+            print(delim, file=f)
 
       - name: Create Git Tag and Push
         shell: bash
