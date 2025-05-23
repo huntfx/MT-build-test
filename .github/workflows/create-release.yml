@@ -99,7 +99,7 @@ jobs:
           git push origin "$TAG_NAME"
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1   # Official GitHub Action for creating releases
+        uses: actions/create-release@v1.1.4   # Official GitHub Action for creating releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is automatically provided by GitHub
         with:
