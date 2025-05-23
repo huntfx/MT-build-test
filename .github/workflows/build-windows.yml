@@ -115,14 +115,24 @@ jobs:
         id: set_names
         shell: bash
         run: |
+          # VERSION env var should be set by previous 'Get version' steps
+          if [ -z "$VERSION" ]; then
+            echo "::error::VERSION environment variable not set!"
+            exit 1
+          fi
+
           EXE_BASENAME="MouseTracks-${VERSION}-windows-${{ matrix.architecture }}"
           FULL_EXE_NAME="${EXE_BASENAME}.exe"
+
+          # Set environment variables for use in later steps of this job
           echo "EXE_BASENAME=${EXE_BASENAME}" >> $GITHUB_ENV
           echo "FULL_EXE_NAME=${FULL_EXE_NAME}" >> $GITHUB_ENV
-          echo "::set-output name=exe_basename::${EXE_BASENAME}"
-          echo "::set-output name=full_exe_name::${FULL_EXE_NAME}"
-          echo "Executable Basename: ${EXE_BASENAME}"
-          echo "Full Executable Name: ${FULL_EXE_NAME}"
+
+          echo "exe_basename=${EXE_BASENAME}" >> $GITHUB_OUTPUT
+          echo "full_exe_name=${FULL_EXE_NAME}" >> $GITHUB_OUTPUT
+
+          echo "Executable Basename will be: ${EXE_BASENAME}"
+          echo "Full Executable Name will be: ${FULL_EXE_NAME}"
 
       - name: Create version.rc
         shell: cmd
@@ -148,11 +158,20 @@ jobs:
           Write-Host "UPX location: $upxDir"
           echo "PATH=$upxDir;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
 
+      - name: Modify PyInstaller Spec File
+        shell: python
+        run: |
+          import os
+          with open('MouseTracks.spec', 'r') as f:
+            content = f.read()
+          with open('MouseTracks.spec', 'w') as f:
+            f.write(content.replace('MouseTracks', os.environ['EXE_BASENAME']))
+
       - name: Build executable
         shell: cmd
         run: |
           call .venv\Scripts\activate
-          pyinstaller --name "${{ env.EXE_BASENAME }}" MouseTracks.spec
+          pyinstaller MouseTracks.spec
           if errorlevel 1 exit /b 1
           call .venv\Scripts\deactivate
 
