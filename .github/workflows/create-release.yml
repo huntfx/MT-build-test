@@ -72,6 +72,37 @@ jobs:
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
 
+      - name: Prepare Release Notes Body (Python)
+        id: prep_release_notes
+        shell: python
+        env:
+          # Pass the full commit message to the Python script as an environment variable
+          FULL_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          import os
+          message = os.environ['FULL_COMMIT_MESSAGE']
+          subject, *comment_lines = message.splitlines()
+          comment = '\n'.join(comment_lines).strip()
+
+          # --- Logging for verification ---
+          print("Full commit message received by Python script:")
+          print("<<<<<<<<<<")
+          print(message)
+          print(">>>>>>>>>>")
+          print("---")
+          print("Processed commit comment (for release notes):")
+          print("<<<<<<<<<<")
+          print(comment)
+          print(">>>>>>>>>>")
+          print("---")
+          # --- End Logging ---
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            # Using a delimiter (EOF here, can be any unique string) for multiline output
+            f.write(f"release_body<<EOF_COMMIT_BODY\n")
+            f.write(f"{body}\n") # Write the potentially multiline body
+            f.write(f"EOF_COMMIT_BODY\n")
+
       - name: Create Git Tag and Push
         shell: bash
         run: |
@@ -93,7 +124,7 @@ jobs:
         with:
           tag_name: ${{ steps.extract_version.outputs.tag_name }}
           name: ${{ steps.extract_version.outputs.release_name }}
-          body: ${{ github.event.head_commit.message }}
+          body: ${{ steps.prep_release_notes.outputs.release_body }}
           draft: false
           prerelease: false
 
