@@ -2,7 +2,7 @@ name: Build (Windows)
 
 on:
   release:
-    types: [published]
+    types: [published, created, released]
   workflow_dispatch:
 
 env:
