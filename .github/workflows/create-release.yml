@@ -44,30 +44,13 @@ jobs:
           python -m pip install --upgrade -r requirements.txt
           call .venv\Scripts\deactivate
 
-      - name: Read version details
+      - name: Get version details from file
         id: extract_version
-        shell: pwsh
+        shell: cmd
         run: |
-          $pythonScript = @'
-            import os
-            import sys
-            from mousetracks2 import __version__ as version
-
-            tag_name = f"v{version}"  # e.g., v1.0.0
-            release_name = f"MouseTracks {version}" # e.g., MouseTracks 2.0.0
-
-            print(f"Extracted Version: {version}")
-            print(f"Generated Tag Name: {tag_name}")
-            print(f"Generated Release Name: {release_name}")
-
-            with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-                print(f"version={version}", file=fh)
-                print(f"tag_name={tag_name}", file=fh)
-                print(f"release_name={release_name}", file=fh)
-          '@
-
-          # Execute the Python script using the venv's Python interpreter
-          & ".venv/Scripts/python.exe" -c $pythonScript
+          call .venv\Scripts\activate
+          python .github/scripts/get-version.py
+          call .venv\Scripts\deactivate
 
       - name: Check if tag already exists
         shell: bash

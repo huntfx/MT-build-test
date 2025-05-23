@@ -76,7 +76,7 @@ jobs:
           python -m pip install --upgrade -r requirements-build-pyinstaller.txt
           call .venv\Scripts\deactivate
 
-      - name: Set version details from tag
+      - name: Get version details from tag
         if: github.ref_type == 'tag'
         shell: python
         run: |
@@ -91,22 +91,14 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
             print(f"VERSION={version}", file=fh_env)
 
-      - name: Read version details
+      - name: Get version details from file
         if: github.ref_type != 'tag'
         id: extract_version
-        shell: pwsh
+        shell: cmd
         run: |
-          . .venv/Scripts/Activate.ps1
-          $pythonScript = @'
-            import os
-            import sys
-            from mousetracks2 import __version__ as version
-            print(f"Version: {version}")
-            with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
-              print(f"VERSION={version}", file=fh_env)
-          '@
-
-          python -c $pythonCode
+          call .venv\Scripts\activate
+          python .github/scripts/get-version.py
+          call .venv\Scripts\deactivate
 
       - name: Create version.rc
         shell: cmd
