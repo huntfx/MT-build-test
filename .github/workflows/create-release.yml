@@ -88,7 +88,6 @@ jobs:
         env:
           # Pass the full commit message to the Python script as an environment variable
           FULL_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          TAG_NAME: ${{ steps.extract_version.outputs.tag_name }}
         run: |
           import os
           message = os.environ['FULL_COMMIT_MESSAGE']
@@ -109,7 +108,7 @@ jobs:
           delim = 'EOF_COMMIT_BODY'  # Can be any unique string
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'release_body<<{delim}', file=f)
-            print(f'## {os.environ["TAG_NAME"]} Release Notes', file=f)
+            print(f'## Release Notes', file=f)
             print(comment, file=f)
             print(delim, file=f)
 
