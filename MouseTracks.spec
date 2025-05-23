@@ -10,6 +10,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('config/colours.txt', 'config'),
+        ('config/AppList.txt', 'config'),
         ('config/language/strings/en_GB.ini', 'config/language/strings'),
         ('config/language/keyboard/keys/en_GB.ini', 'config/language/keyboard/keys'),
         ('config/language/keyboard/layout/en_US.txt', 'config/language/keyboard/layout'),
@@ -77,7 +78,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[r'resources\build\scipy\ndimage\_nd_image.cp311-win_amd64.dll.a'],
+    upx_exclude=['resources/build/scipy/ndimage/_nd_image.cp311-win_amd64.dll.a'],
     runtime_tmpdir=None,
     console=True,
     disable_windowed_traceback=False,

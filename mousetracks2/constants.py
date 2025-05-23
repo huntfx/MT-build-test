@@ -1,18 +1,21 @@
 import os
 import sys
 from pathlib import Path
+from typing import cast
 
-# Get the appdata folder
-# Source: https://github.com/ActiveState/appdirs/blob/master/appdirs.py
-match sys.platform:
-    case "win32":
-        APPDATA = Path(os.path.expandvars('%APPDATA%'))
-    case 'darwin':
-        APPDATA = Path(os.path.expanduser('~/Library/Application Support/'))
-    case _:
-        APPDATA = Path(os.getenv('XDG_DATA_HOME', os.path.expanduser("~/.local/share")))
 
-BASE_DIR = APPDATA / 'MouseTracks'
+SYS_EXECUTABLE = sys.executable
+
+REPO_DIR = Path(__file__).parent.parent
+
+# PyInstaller
+if hasattr(sys, '_MEIPASS'):
+    REPO_DIR = Path(sys._MEIPASS)
+
+# Nuitka
+elif '__compiled__' in globals():
+    REPO_DIR = Path(sys.executable).parent
+    SYS_EXECUTABLE = cast(str, __compiled__.original_argv0)  # type: ignore
 
 DEFAULT_PROFILE_NAME = 'Desktop'
 
@@ -51,3 +54,13 @@ The default `HungAppTimeout` is 5 seconds and `WaitToKillAppTimeout` is
 
 CHECK_COMPONENT_FREQUENCY = 1.0
 """How often in seconds to check if all components are running."""
+
+TRACKING_DISABLE = 'Untracked'
+"""Turn off tracking for any applications with this name."""
+
+TRACKING_IGNORE = '<ignore>'
+"""Ignore tracking for any applications with this name.
+This may be used when specifically excluding a splash screen.
+"""
+
+TRACKING_WILDCARD = '<*>'

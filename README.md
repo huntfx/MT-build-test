@@ -12,7 +12,7 @@ MouseTracks is an application designed to track and visualize mouse movements, c
   Keyboard heatmaps and gamepad inputs are also supported.
 
 - ### Live Preview
-  The GUI includes a real-time preview of tracking data, combining thumbnail renders with live input.
+  The GUI includes an optimised real-time preview of tracking data, combining thumbnail renders with live input.
 
 - ### Image Rendering:
   Renders are generated at full quality, regardless of resolution changes. Each input type is tracked independently and merged during the render process.
@@ -23,38 +23,44 @@ MouseTracks is an application designed to track and visualize mouse movements, c
 
   - Key presses: Heatmap overlaid on a keyboard image.
 
-  - _(Gamepad button rendering is not yet supported.)_
+  - _(Gamepad rendering is not yet supported.)_
 
 - ### Colourful Renders:
   Includes predefined and customizable color maps for all render types.
 
 - ### Application Tracking:
-  Use separate tracking profiles when different applications (defined in `AppList.txt`) are detected.
+  Use separate tracking profiles depending on which application has focus.
 
-  _(New applications must be added manually.)_
+  _(New applications must be added via the GUI.)_
 
 - ### Multi-Monitor Support:
   Tracks activity across multiple monitors. If linked to a specific application, the rendering bounds will automatically adjust to the application's window geometry.
 
 - ### Unobtrusive:
-  Designed to run silently in the background. Closing the GUI will minimise it to the System Tray, which also reduces the processing overhead.
+  Designed to run silently in the background. The GUI can be hidden to the System Tray, which also removes the processing overhead of showing all the live data.
 
 - ### Modular Design:
   The application was designed with multiple components that communicate but run independenantly of each other, ensuring the live tracking remains fully stable, even during resource-intensive tasks like rendering or waiting on GUI operations.
 
 - ### Stability
   Will happily keep running for years without any issues.
+
+MouseTracks is and will always remain free, but if you enjoy using it and would like to [buy me a pint](https://www.paypal.me/PeterHunt999) in appreciation (as I don't like coffee), then that would be very kind.
+
 ---
 
 ## Installation (v2.0)
 
-_Currently, only Windows is supported. Contributions for Linux or macOS support are welcome!_
+_Currently, only Windows is supported. Contributions for Linux or macOS support are welcome._
 
 ### Prebuilt Executable
 
 Launch `MouseTracks.exe` from anywhere. Recommended for ease of use.
 
-Build it using [`build.bat`](build.bat), or download it from the releases (available with v2.0).
+Build it using [`build-pyinstaller.bat`](build-pyinstaller.bat), or download it from the releases.
+
+It's also possible to run [`build-nuitka.bat`](build-nuitka.bat), but this is not recommended unless you have a commercial license, as it will be flagged by a lot of AV programs.
+
 
 ### Virtual Environment
 
@@ -74,26 +80,23 @@ Ensure all modules in [requirements.txt](requirements.txt) are installed.
 
 ## Installation (v1.0 - Deprecated)
 
-_The v1.0 version is no longer supported. However it may receive minor updates to the launch process to bring it in line with v2.0._
+_The v1.0 version is no longer supported, but the launch process has been updated to bring it in line with v2.0._
+
+You will be prompted with a choice to start tracking or generate images. This can be skipped by passing the `--start-tracking` or `--generate-images` flags.
+
+### Virtual Environment
+
+Recommended if running the code locally.
+
+1. Run `python -m venv .venv-legacy` to create the virtual environment with any version of Python.
+2. Run `launch-legacy.bat`.
 
 
-- `start_tracking.py`: Run this to start recording data.
-- `generate_images.py`: Script for rendering visualisations from the saved data.
+### Without a Virtual Environment
 
-### Requirements for v1.0
-- #### Core Modules:
-  Python 2.7+, [Numpy](https://pypi.python.org/pypi/numpy), [psutil](https://pypi.python.org/pypi/psutil), [scipy](https://pypi.python.org/pypi/scipy), [Pillow](https://pypi.python.org/pypi/Pillow), [Flask](http://flask.pocoo.org/) ([optional](# "Used for the API")), [PyCrypto](https://pypi.python.org/pypi/pycrypto) ([optional](# "Used to encrypt API messages")), [pyglet](https://pypi.python.org/pypi/pyglet/1.3.0) (included)
+Run `launch-legacy.py`.
 
-
-- #### Windows Extras:
-  [pywin32](https://sourceforge.net/projects/pywin32/files/pywin32) ([optional](# "Used for the tray icon")), [xinput](https://github.com/r4dian/Xbox-360-Controller-for-Python/blob/master/xinput.py) (included)
-
-
-- ##### Linux Extras (WIP):
-  [xlib](https://pypi.python.org/pypi/python-xlib), [pyxhook](https://pypi.org/project/pyxhook/)
-
-- ##### Mac Extras (WIP):
-  [AppKit](https://pypi.python.org/pypi/AppKit/0.2.8)
+Ensure all modules in [requirements-legacy.txt](requirements-legacy.txt) are installed.
 
 ---
 

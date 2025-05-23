@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 import numpy as np
 
-from ..config import ProfileConfig
+from ..config.settings import ProfileConfig
 
 
 class Target:
@@ -30,6 +30,20 @@ class RenderType(Enum):
     Thumbstick_Speed = auto()
     Thumbstick_Heatmap = auto()
     Keyboard = auto()
+
+
+class TrackingState(Enum):
+    """Current state of the application.
+
+    If paused, then the components are still running and just skip
+    executing certain commands. Messages may still be sent.
+    If stopped, then all processes have been fully shut down, and
+    can only be restarted by the hub.
+    """
+
+    Running = auto()
+    Paused = auto()
+    Stopped = auto()
 
 
 @dataclass
@@ -149,16 +163,29 @@ class Traceback(Message):
 
 
 @dataclass
-class TrackingState(Message):
-    """Set a tracking state."""
+class StartTracking(Message):
+    """Send a request to start tracking.
+    Once this is processed, the `TrackingStarted` message will be sent.
+    """
+    target: int = field(default=Target.Tracking | Target.Hub, init=False)
 
-    class State(Enum):
-        Start = auto()
-        Pause = auto()
-        Stop = auto()
 
+@dataclass
+class TrackingStarted(Message):
+    """Send a message after tracking has started."""
+    target: int = field(default=Target.Processing | Target.GUI, init=False)
+
+
+@dataclass
+class PauseTracking(Message):
+    """Send a request to pause tracking."""
+    target: int = field(default=Target.Hub | Target.Tracking | Target.GUI, init=False)
+
+
+@dataclass
+class StopTracking(Message):
+    """Send a request to stop tracking."""
     target: int = field(default=Target.Hub | Target.Tracking | Target.Processing | Target.AppDetection | Target.GUI, init=False)
-    state: State
 
 
 @dataclass
@@ -179,12 +206,21 @@ class RenderRequest(Message):
 
     target: int = field(default=Target.Processing, init=False)
     type: RenderType
+    profile: str | None
+    file_path: str | None
     width: int | None
     height: int | None
     colour_map: str
-    sampling: int
-    profile: str | None
-    file_path: str | None
+    linear: bool
+    sampling: int = 1
+    padding: int = 0
+    contrast: float = 1.0
+    lock_aspect: bool = True
+    clipping: float = 1.0
+    blur: float = 0.0
+    show_left_clicks: bool = True
+    show_middle_clicks: bool = True
+    show_right_clicks: bool = True
 
 
 @dataclass
@@ -205,20 +241,54 @@ class RequestRunningAppCheck(Message):
 
 
 @dataclass
-class ApplicationDetected(Message):
-    """Update data about an application."""
+class TrackedApplicationDetected(Message):
+    """Detect when a new tracked application is focused.
 
-    target: int = field(default=Target.Processing | Target.Tracking | Target.GUI, init=False)
+    This was originally processed by all components, but there was a
+    rare chance of a race condition where the active time was 1 tick
+    higher than the elapsed time. Now it notifies just the tracking
+    component, which then it turn sends a separate message out to the
+    other components, but in sync with the ticks.
+    """
+
+    target: int = field(default=Target.Tracking, init=False)
     name: str
     process_id: int | None
-    rect: tuple[int, int, int, int] | None
+    rects: list[tuple[int, int, int, int]] = field(default_factory=list)
+
+
+@dataclass
+class CurrentProfileChanged(Message):
+    """Trigger a profile switch.
+
+    This is a variation of `TrackedApplicationDetected`, but is in
+    sync with the tick counter to prevent race conditions.
+    """
+
+    target: int = field(default=Target.Processing | Target.GUI, init=False)
+    name: str
+    process_id: int | None
+    rects: list[tuple[int, int, int, int]] = field(default_factory=list)
+
+
+@dataclass
+class ApplicationFocusChanged(Message):
+    """Send a notification whenever a new application is focused.
+    This is for debugging and is not used for logic.
+    """
+
+    target: int = field(default=Target.GUI, init=False)
+    exe: str
+    title: str
+    tracked: bool
+
 
 
 @dataclass
 class Exit(Message):
     """Quit the whole application."""
 
-    target: int = field(default=Target.Hub, init=False)
+    target: int = field(default=Target.Hub | Target.Tracking | Target.Processing | Target.AppDetection | Target.GUI, init=False)
 
 
 @dataclass
@@ -238,6 +308,7 @@ class Save(Message):
     """Once a save is ready to be done."""
 
     target: int = field(default=Target.Processing, init=False)
+    profile_name: str | None = None
 
 
 @dataclass
@@ -281,6 +352,8 @@ class ProfileData(Message):
     bytes_sent: int
     bytes_recv: int
     config: ProfileConfig
+    resolutions: dict[tuple[int, int], tuple[int, bool]]
+    multi_monitor: bool | None
 
 
 @dataclass
@@ -311,29 +384,53 @@ class Inactive(Message):
 
 @dataclass
 class SetProfileMouseTracking(Message):
-    target: int = field(default=Target.Processing | Target.GUI, init=False)
+    target: int = field(default=Target.Processing, init=False)
     profile_name: str
     enable: bool
 
 
 @dataclass
 class SetProfileKeyboardTracking(Message):
-    target: int = field(default=Target.Processing | Target.GUI, init=False)
+    target: int = field(default=Target.Processing, init=False)
     profile_name: str
     enable: bool
 
 
 @dataclass
 class SetProfileGamepadTracking(Message):
-    target: int = field(default=Target.Processing | Target.GUI, init=False)
+    target: int = field(default=Target.Processing, init=False)
     profile_name: str
     enable: bool
 
 
 @dataclass
 class SetProfileNetworkTracking(Message):
-    target: int = field(default=Target.Processing | Target.GUI, init=False)
+    target: int = field(default=Target.Processing, init=False)
     profile_name: str
+    enable: bool
+
+
+@dataclass
+class SetGlobalMouseTracking(Message):
+    target: int = field(default=Target.Tracking, init=False)
+    enable: bool
+
+
+@dataclass
+class SetGlobalKeyboardTracking(Message):
+    target: int = field(default=Target.Tracking, init=False)
+    enable: bool
+
+
+@dataclass
+class SetGlobalGamepadTracking(Message):
+    target: int = field(default=Target.Tracking, init=False)
+    enable: bool
+
+
+@dataclass
+class SetGlobalNetworkTracking(Message):
+    target: int = field(default=Target.Tracking, init=False)
     enable: bool
 
 
@@ -357,6 +454,12 @@ class DeleteGamepadData(Message):
 
 @dataclass
 class DeleteNetworkData(Message):
+    target: int = field(default=Target.Processing, init=False)
+    profile_name: str
+
+
+@dataclass
+class DeleteProfile(Message):
     target: int = field(default=Target.Processing, init=False)
     profile_name: str
 
@@ -401,3 +504,78 @@ class CloseSplashScreen(Message):
     """
 
     target: int = field(default=Target.Hub, init=False)
+
+
+@dataclass
+class LoadLegacyProfile(Message):
+    """Send a request to load an old profile."""
+
+    target: int = field(default=Target.Processing | Target.GUI, init=False)
+    name: str
+    path: str
+
+
+@dataclass
+class ExportStats(Message):
+    target: int = field(default=Target.Processing, init=False)
+    profile: str
+    path: str
+
+
+@dataclass
+class ExportMouseStats(ExportStats):
+    """Export the mouse statistics."""
+
+
+@dataclass
+class ExportKeyboardStats(ExportStats):
+    """Export the keyboard statistics."""
+
+
+@dataclass
+class ExportGamepadStats(ExportStats):
+    """Export the gamepad statistics."""
+
+
+@dataclass
+class ExportNetworkStats(ExportStats):
+    """Export the network statistics."""
+
+
+@dataclass
+class ExportDailyStats(ExportStats):
+    """Export the daily statistics."""
+
+
+@dataclass
+class ExportStatsSuccessful(Message):
+    """Send a message when the export was successful."""
+
+    target: int = field(default=Target.GUI, init=False)
+    source: ExportStats
+
+
+@dataclass
+class ReloadAppList(Message):
+    """Reload AppList.txt."""
+
+    target: int = field(default=Target.AppDetection | Target.GUI, init=False)
+
+
+@dataclass
+class ToggleProfileResolution(Message):
+    """Enable or disable a resolution for a profile."""
+
+    target: int = field(default=Target.Processing, init=False)
+    profile: str
+    resolution: tuple[int, int]
+    enable: bool
+
+
+@dataclass
+class ToggleProfileMultiMonitor(Message):
+    """Change multi monitor handling for a profile."""
+
+    target: int = field(default=Target.Processing, init=False)
+    profile: str
+    multi_monitor: bool | None

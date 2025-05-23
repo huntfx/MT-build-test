@@ -1,15 +1,10 @@
 import math
-import sys
 from collections import defaultdict
 
 import numpy as np
-try:
-    from scipy import ndimage
-except ModuleNotFoundError:
-    sys.path.append('resources/build')
-    from scipy import ndimage
+from scipy import ndimage
 
-from mousetracks.image import colours
+from .legacy import colours
 
 
 class EmptyRenderError(ValueError):
@@ -24,13 +19,13 @@ class EmptyRenderError(ValueError):
 
 
 def array_target_resolution(arrays: list[np.typing.ArrayLike], width: int | None = None,
-                            height: int | None = None, keep_aspect: bool = True) -> tuple[int, int]:
+                            height: int | None = None, lock_aspect: bool = False) -> tuple[int, int]:
     """Calculate a target resolution.
     If width or height is given, then it will be used.
-    The aspect ratio is taken into consideration.
+    The aspect ratio can be taken into consideration.
     """
     # If not keeping aspect, return the given width and height
-    if width is not None and height is not None and not keep_aspect:
+    if width is not None and height is not None and not lock_aspect:
         return width, height
 
     # Calculate the most common aspect ratio
@@ -72,9 +67,9 @@ def array_to_uint8(array: np.ndarray) -> np.ndarray:
     return (array.astype(np.float64) * (255 / max_value)).astype(np.uint8)
 
 
-def gaussian_size(width, height, multiplier: float = 1.0, base: float = 0.0125):
+def gaussian_size(width, height, multiplier: float = 0.0125):
     """Choose a gaussian blur amount to use for a given resolution."""
-    return int(round(min(width, height) * base * multiplier))
+    return min(width, height) * multiplier
 
 
 def array_rescale(array: np.typing.ArrayLike, target_width: int, target_height: int) -> np.ndarray:
@@ -101,7 +96,7 @@ def array_rescale(array: np.typing.ArrayLike, target_width: int, target_height: 
     return np.ascontiguousarray(pooled_full[indices_y][:, indices_x])
 
 
-def generate_colour_lookup(*colours: tuple[int, int, int, int], steps: int = 256) -> np.ndarray:
+def generate_colour_lookup(*colours: tuple[int, ...], steps: int = 256) -> np.ndarray:
     """Generate a color lookup table transitioning smoothly between given colors."""
     lookup = np.zeros((steps, 4), dtype=np.uint8)
 
@@ -133,8 +128,9 @@ def generate_colour_lookup(*colours: tuple[int, int, int, int], steps: int = 256
 
 
 def render(colour_map: str, positional_arrays: dict[tuple[int, int], list[np.typing.ArrayLike]],
-           width: int | None = None, height: int | None = None, sampling: int = 1,
-           linear: bool = False, blur: bool = False) -> np.ndarray:
+           width: int | None = None, height: int | None = None, sampling: int = 1, lock_aspect: bool = True,
+           linear: bool = False, blur: float = 0.0, contrast: float = 1.0,
+           clipping: float = 0.0) -> np.ndarray:
     """Combine a group of arrays into a single array for rendering.
 
     Parameters:
@@ -152,22 +148,27 @@ def render(colour_map: str, positional_arrays: dict[tuple[int, int], list[np.typ
             target resolution.
             It ensures a more accurate representation when combining
             different resolutions together.
+        lock_aspect: Force the aspect ratio to its recommended value.
         linear: Remap the array to linear values.
             This will ensure a smooth gradient.
-        blur: Blur the array, for example for a heatmap.
+        blur: Blur the array with a gaussian sigma of this value.
+        contrast: Adjust the array contrast.
+            This works by spacing out or reducing values.
+        clipping: Clip the upper range to a percentage.
+            This can be used on a heatmap if there's a single hotspot
+            dominating the image.
     """
     # Calculate width / height
     all_arrays = []
     for arrays in positional_arrays.values():
         all_arrays.extend(arrays)
     if all_arrays:
-        width, height = array_target_resolution(all_arrays, width, height)
-    elif width is None or height is None:
+        width, height = array_target_resolution(all_arrays, width, height, lock_aspect)
+    if not width or not height:
         raise EmptyRenderError
 
     scale_width = width * sampling
     scale_height = height * sampling
-    blur_amount = gaussian_size(scale_width, scale_height)
 
     # Rescale the arrays to the target size and combine them
     combined_arrays: dict[tuple[int, int], np.ndarray] = {}
@@ -185,14 +186,9 @@ def render(colour_map: str, positional_arrays: dict[tuple[int, int], list[np.typ
 
     # Apply gaussian blur
     if blur:
-        combined_arrays = {pos: ndimage.gaussian_filter(array.astype(np.float64), sigma=blur_amount)
+        combined_arrays = {pos: ndimage.gaussian_filter(array.astype(np.float64),
+                                                        sigma=gaussian_size(scale_width, scale_height, blur))
                            for pos, array in combined_arrays.items()}
-
-        # TODO: Reimplement the heatmap range clipping
-        # It will be easier to test once saving works and a heavier heatmap can be used
-        # min_value = np.min(heatmap)
-        # all_values = np.sort(heatmap.ravel(), unique=True)
-        # max_value = all_values[int(round(len(unique_values) * 0.005))]
 
     # Equalise the max values
     if len(combined_arrays) > 1:
@@ -203,6 +199,34 @@ def render(colour_map: str, positional_arrays: dict[tuple[int, int], list[np.typ
 
     # Combine all positional arrays into one big array
     combined_array = combine_array_grid(combined_arrays, scale_width, scale_height)
+
+    # Clip the maximum values
+    if clipping:
+        sorted_values, linear_mapping = np.unique(combined_array, return_inverse=True)
+        max_value = sorted_values[int(np.max(linear_mapping) * (1 - clipping))]
+        combined_array[combined_array > max_value] = max_value
+
+    # Update the contrast
+    if contrast != 1.0:
+
+        max_value = np.max(combined_array)
+        max_value_log = np.log(max_value)
+        limit = np.log(np.finfo(combined_array.dtype).max)
+
+        # Prevent overflow errors by reducing the array range
+        if True:
+            target = limit / contrast
+            if np.log(max_value) > target:
+                new_max = int(np.exp(target))  # int conversion to round down
+                combined_array /= (max_value / new_max)
+
+        # Prevent overflow errors by limiting the contrast value
+        # This is less preferable as it sets a hard limit
+        else:
+            if contrast * max_value_log > limit:
+                contrast = int(limit) / max_value_log  # int conversion to round down
+
+        combined_array **= contrast
 
     # Convert the array to 0-255 and map to a colour lookup table
     try:
@@ -218,7 +242,7 @@ def combine_array_grid(positional_arrays: dict[tuple[int, int], np.ndarray],
                        scale_width: int, scale_height: int) -> np.ndarray:
     """Combine arrays based on their positions and offsets."""
     if not positional_arrays:
-        return np.zeros((scale_height, scale_width), dtype=np.int8)
+        return np.zeros((scale_height, scale_width), dtype=np.float64)
 
     if len(set(array.shape for array in positional_arrays.values())) != 1:
         raise ValueError('all arrays must be the same size')

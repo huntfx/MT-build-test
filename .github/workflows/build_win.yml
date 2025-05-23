@@ -4,10 +4,10 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-  
+
 env:
-  PYINSTALLER_VERSION: v6.11.1 # Match the version in your .bat file
-  
+  PYINSTALLER_VERSION: v6.11.1  # Match 'requirements-build-pyinstaller.txt'
+
 jobs:
   build:
     runs-on: windows-latest
@@ -48,7 +48,7 @@ jobs:
       shell: cmd
       run: |
         python -m venv .venv
-        
+
     - name: Create build folder
       shell: cmd
       run: |
@@ -61,7 +61,7 @@ jobs:
         call .venv\Scripts\activate
         python -m pip install --upgrade pip wheel
         call .venv\Scripts\deactivate
-        
+
     - name: Build PyInstaller Bootloader (${{ env.PYINSTALLER_VERSION }})
       shell: cmd
       run: |
@@ -102,30 +102,26 @@ jobs:
           echo ERROR: version.rc not created!
           exit /b 1
         )
-        
-    - name: Download and install UPX 5.0.1
-      # you can use either powershell or cmd; powershell is more concise for web downloads + unzipping
+
+    - name: Install UPX
       shell: powershell
       run: |
-        # 1. Download
         Invoke-WebRequest `
           -Uri https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-win64.zip `
           -OutFile upx.zip
 
-        # 2. Unzip
         Expand-Archive -Path upx.zip -DestinationPath upx
 
-        # 3. Add to PATH for the rest of the job
         $upxDir = "$(Resolve-Path upx\upx-5.0.1-win64)"
-        Write-Host "UPX will live in: $upxDir"
-        # GitHub Actions’ recommended way to update PATH:
+        Write-Host "UPX location: $upxDir"
         echo "PATH=$upxDir;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-        
+
     - name: Build executable
       shell: cmd
       run: |
         call .venv\Scripts\activate
         pyinstaller MouseTracks.spec
+        if errorlevel 1 exit /b 1
         call .venv\Scripts\deactivate
 
     - name: Attach executable to release

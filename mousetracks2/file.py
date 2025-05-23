@@ -10,27 +10,18 @@ from uuid import uuid4
 
 import numpy as np
 
-from .config import ProfileConfig
-from .constants import BASE_DIR, COMPRESSION_FACTOR, COMPRESSION_THRESHOLD, DEBUG
+from .config.cli import CLI
+from .config.settings import ProfileConfig
+from .constants import COMPRESSION_FACTOR, COMPRESSION_THRESHOLD, DEBUG, TRACKING_DISABLE
 from .utils.keycodes import CLICK_CODES
 
-
-ALLOW_LEGACY_IMPORT = True
-"""Legacy imports require unpickling data, so is unsafe.
-TODO: Default to False, and only enable when using File > Import.
-"""
-
-EXPECTED_LEGACY_VERSION = 34
-"""Only legacy files of this version are allowed to be loaded.
-Any other versions must be upgraded with the mousetracks v1 script.
-"""
 
 CURRENT_FILE_VERSION = 1
 
 EXTENSION = 'mtk'
 """Extension to use for the profile data."""
 
-PROFILE_DIR = BASE_DIR / 'Profiles'
+PROFILE_DIR = CLI.data_dir / 'Profiles'
 
 
 class UnsupportedVersionError(Exception):
@@ -179,6 +170,11 @@ class TrackingIntArray(TrackingArray):
 
         super().__setitem__(item, value)
 
+    def _load_from_zip(self, zf: zipfile.ZipFile, path: str) -> None:
+        """Load data and update the internal max value."""
+        super()._load_from_zip(zf, path)
+        self.max_value = np.iinfo(self.array.dtype).max
+
 
 class ArrayResolutionMap(dict):
     """Store multiple arrays for different resolutions.
@@ -291,7 +287,8 @@ class TrackingProfile:
     config: ProfileConfig = field(default_factory=ProfileConfig, init=False)
 
     created: int = field(default_factory=lambda: int(time.time()), init=False)
-    modified: bool = field(default=False, init=False)
+    modified: int = field(default_factory=lambda: int(time.time()), init=False)
+    is_modified: bool = field(default=False, init=False)
     elapsed: int = field(default=0, init=False)
     active: int = field(default=0, init=False)
     inactive: int = field(default=0, init=False)
@@ -323,9 +320,11 @@ class TrackingProfile:
     daily_upload: TrackingIntArray = field(default_factory=lambda: TrackingIntArray(1, auto_pad=True), init=False)
     daily_download: TrackingIntArray = field(default_factory=lambda: TrackingIntArray(1, auto_pad=True), init=False)
 
-    def _write_to_zip(self, zf: zipfile.ZipFile) -> None:
+    def _write_to_zip(self, zf: zipfile.ZipFile, modified: float | None = None) -> None:
         if DEBUG:
             assert (self.active + self.inactive) == self.elapsed
+        if modified is None:
+            modified = time.time()
 
         with zf.open('config.yaml', 'w') as f:
             self.config.save(f)
@@ -333,7 +332,7 @@ class TrackingProfile:
         zf.writestr('version', str(CURRENT_FILE_VERSION))
         zf.writestr('metadata/name', self.name)
         zf.writestr('metadata/time/created', str(self.created))
-        zf.writestr('metadata/time/modified', str(int(time.time())))
+        zf.writestr('metadata/time/modified', str(int(modified)))
         zf.writestr('metadata/ticks/elapsed', str(self.elapsed))
         zf.writestr('metadata/ticks/active', str(self.active))
         zf.writestr('metadata/ticks/inactive', str(self.inactive))
@@ -383,6 +382,7 @@ class TrackingProfile:
                 self.config.load(f)
 
         self.created = int(zf.read('metadata/time/created'))
+        self.modified = int(zf.read('metadata/time/modified'))
         self.elapsed = int(zf.read('metadata/ticks/elapsed'))
         self.active = int(zf.read('metadata/ticks/active'))
         self.inactive = int(zf.read('metadata/ticks/inactive'))
@@ -416,6 +416,7 @@ class TrackingProfile:
                 mac_address = path.split('/')[3]
                 self.data_download[mac_address] = int(zf.read(path))
             elif path.startswith('data/network/interfaces/'):
+                mac_address = path.split('/')[3]
                 self.data_interfaces[mac_address] = zf.read(path).decode('utf-8')
                 if not self.data_interfaces[mac_address]:
                     self.data_interfaces[mac_address] = None
@@ -432,8 +433,16 @@ class TrackingProfile:
         if DEBUG:
             assert (self.active + self.inactive) == self.elapsed
 
-    def save(self, path: str) -> bool:
-        self.modified = False
+    def save(self, path: str | None = None, _is_fix: bool = False) -> bool:
+        """Save the profile.
+        The `_is_fix` parameter can be used when manually making edits
+        to profiles to avoid updating the modified date.
+        """
+        if path is None:
+            path = get_filename(self.name)
+        if _is_fix and self.is_modified:
+            raise RuntimeError('fixes can only be done on unmodified profiles')
+        self.is_modified = False
 
         # Ensure the folder exists
         base_dir = os.path.dirname(path)
@@ -447,7 +456,7 @@ class TrackingProfile:
 
         try:
             with zipfile.ZipFile(temp_file, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
-                self._write_to_zip(zf)
+                self._write_to_zip(zf, modified=self.modified)
 
             # Quickly swap over the files to reduce chances of a race condition
             if os.path.exists(path):
@@ -465,9 +474,15 @@ class TrackingProfile:
                         break
                 else:
                     print(f'[File] Unable to overwrite {path}, saving failed!')
-                    self.modified = True
+                    if not _is_fix:
+                        self.is_modified = True
                     return False
 
+            # Copy modified date if required
+            if _is_fix:
+                os.utime(temp_file, (self.modified, self.modified))
+
+            # Replace file
             os.rename(temp_file, path)
 
         finally:
@@ -480,105 +495,127 @@ class TrackingProfile:
         return True
 
     @classmethod
-    def load(cls, path: str, allow_legacy: bool = ALLOW_LEGACY_IMPORT) -> Self:
+    def load(cls, path: str) -> Self:
         profile = cls()
         with zipfile.ZipFile(path, mode='r') as zf:
-            version = _get_profile_version(zf)
-
-            # Special case to load legacy profiles
-            if version is None:
-                if allow_legacy and _get_profile_legacy_version(zf) is not None:
-                    _load_legacy_data(zf, profile)
-                else:
-                    raise UnsupportedVersionError('invalid file')
-
-            # Load the data
-            else:
-                if not 1 <= version <= CURRENT_FILE_VERSION:
-                    raise UnsupportedVersionError(str(version))
-                profile._load_from_zip(zf)
-
+            profile._load_from_zip(zf)
         return profile
 
+    def import_legacy(self, path: str) -> None:
+        """Load in data from the legacy tracking.
+        This is not perfectly safe as it involves loading pickled data,
+        so it is hidden behind the "File > Import" option.
 
-def _load_legacy_data(zf: zipfile.ZipFile, profile: TrackingProfile) -> None:
-    """Load in data from the legacy tracking.
+        Mouse:
+            Time, speed and click arrays are imported.
+            There is no density data.
 
-    Mouse:
-        Time, speed and click arrays are imported.
-        There is no density data.
+        Keyboard:
+            Everything is imported.
 
-    Keyboard:
-        Everything is imported.
+        Gamepad:
+            Mostly imported.
+            Trigger presses may be lost.
+            Thumbstick data is discarded as X and Y were recorded separately
+            and cannot be recombined.
+        """
+        # Attempt to import the legacy libraries
+        try:
+            from mousetracks.files import CustomOpen, decode_file, upgrade_version
 
-    Gamepad:
-        Mostly imported.
-        Trigger presses may be lost.
-        Thumbstick data is discarded as X and Y were recorded separately
-        and cannot be recombined.
-    """
-    # Check the version
-    version = _get_profile_legacy_version(zf)
-    if version != EXPECTED_LEGACY_VERSION:
-        raise UnsupportedVersionError(f'legacy profile cannot be imported as it does not have the most recent update')
+        # Manually load the data
+        except ImportError:
 
-    # Load in the data
-    with zf.open('data.pkl') as f:
-        data: dict[str, Any] = pickle.load(f)
+            with zipfile.ZipFile(path, mode='r') as zf:
+                # Check the version
+                # Manual parsing is only supported for version 34
+                try:
+                    version = int(zf.read('metadata/file.txt'))
+                except KeyError:
+                    version = None
+                if version != 34:
+                    raise UnsupportedVersionError(f'legacy profile cannot be imported as it does not have the most recent update')
 
-    # Load in the metadata
-    profile.created = int(data['Time']['Created'])
-    profile.cursor_map.distance = int(data['Distance']['Tracks'])
-    profile.cursor_map.counter = int(data['Ticks']['Tracks'])
+                # Load in the data
+                with zf.open('data.pkl') as f:
+                    data: dict[str, Any] = pickle.load(f)
 
-    # Calculate the active / inactive time
-    # This was not recorded properly in the legacy code, so a very
-    # rough formula is used to estimate based on the data available
-    profile.elapsed = data['Ticks']['Total']
-    profile.active = int(data['Ticks']['Recorded'] * (data['Ticks']['Total'] / data['Ticks']['Recorded']) ** 0.9)
-    profile.inactive = data['Ticks']['Total'] - profile.active
+                    # Load in the arrays
+                    for resolution, values in data['Resolution'].items():
+                        with zf.open(f'maps/{values["Tracks"]}.npy') as f:
+                            if np.any(array := np.load(f) > 0):
+                                self.cursor_map.sequential_arrays[resolution] = TrackingIntArray(array)
+                        with zf.open(f'maps/{values["Speed"]}.npy') as f:
+                            if np.any(array := np.load(f) > 0):
+                                self.cursor_map.speed_arrays[resolution] = TrackingIntArray(array)
+                        with zf.open(f'maps/{values["Clicks"]["Single"]["Left"]}.npy') as f:
+                            if np.any(array := np.load(f) > 0):
+                                self.mouse_single_clicks[CLICK_CODES[0]][resolution] = TrackingIntArray(array)
+                        with zf.open(f'maps/{values["Clicks"]["Single"]["Middle"]}.npy') as f:
+                            if np.any(array := np.load(f) > 0):
+                                self.mouse_single_clicks[CLICK_CODES[1]][resolution] = TrackingIntArray(array)
+                        with zf.open(f'maps/{values["Clicks"]["Single"]["Right"]}.npy') as f:
+                            if np.any(array := np.load(f) > 0):
+                                self.mouse_single_clicks[CLICK_CODES[2]][resolution] = TrackingIntArray(array)
+                        with zf.open(f'maps/{values["Clicks"]["Double"]["Left"]}.npy') as f:
+                            if np.any(array := np.load(f) > 0):
+                                self.mouse_double_clicks[CLICK_CODES[0]][resolution] = TrackingIntArray(array)
+                        with zf.open(f'maps/{values["Clicks"]["Double"]["Middle"]}.npy') as f:
+                            if np.any(array := np.load(f) > 0):
+                                self.mouse_double_clicks[CLICK_CODES[1]][resolution] = TrackingIntArray(array)
+                        with zf.open(f'maps/{values["Clicks"]["Double"]["Right"]}.npy') as f:
+                            if np.any(array := np.load(f) > 0):
+                                self.mouse_double_clicks[CLICK_CODES[2]][resolution] = TrackingIntArray(array)
 
-    # Process main tracking data
-    for resolution, values in data['Resolution'].items():
-        # Load tracking heatmap
-        for array_type, cursor_container in (('Tracks', profile.cursor_map.sequential_arrays), ('Speed', profile.cursor_map.speed_arrays)):
-            with zf.open(f'maps/{values[array_type]}.npy') as f:
-                array = np.load(f)
-                if np.any(array > 0):
-                    cursor_container[resolution] = TrackingIntArray(array)
+        # Load the data using the legacy library
+        else:
+            with CustomOpen(path, 'rb') as f:
+                data = upgrade_version(decode_file(f, legacy=f.zip is None))
 
-        # Load click heatmap
-        for array_type, click_container in (('Single', profile.mouse_single_clicks), ('Double', profile.mouse_double_clicks)):
-            for i, mb in enumerate(('Left', 'Middle', 'Right')):
-                with zf.open(f'maps/{values["Clicks"][array_type][mb]}.npy') as f:
-                    array = np.load(f)
+            # Process main tracking data
+            for resolution, values in data['Resolution'].items():
+                tracks = values['Tracks']
+                if np.any(tracks > 0):
+                    self.cursor_map.sequential_arrays[resolution] = TrackingIntArray(tracks)
+
+                speed = values['Speed']
+                if np.any(speed > 0):
+                    self.cursor_map.speed_arrays[resolution] = TrackingIntArray(speed)
+
+                single_clicks = values['Clicks']['Single']
+                for i, mb in enumerate(('Left', 'Middle', 'Right')):
+                    array = single_clicks[mb]
                     if np.any(array > 0):
-                        click_container[CLICK_CODES[i]][resolution] = TrackingIntArray(array)
+                        self.mouse_single_clicks[CLICK_CODES[i]][resolution] = TrackingIntArray(array)
 
-    # Process key/button data
-    for keycode, count in data['Keys']['All']['Pressed'].items():
-        profile.key_presses[keycode] = count
-    for keycode, count in data['Keys']['All']['Held'].items():
-        profile.key_held[keycode] = count
+                double_clicks = values['Clicks']['Double']
+                for i, mb in enumerate(('Left', 'Middle', 'Right')):
+                    array = double_clicks[mb]
+                    if np.any(array > 0):
+                        self.mouse_double_clicks[CLICK_CODES[i]][resolution] = TrackingIntArray(array)
 
-    for keycode, count in data['Gamepad']['All']['Buttons']['Pressed'].items():
-        profile.button_presses[0][keycode] = count
-    for keycode, count in data['Gamepad']['All']['Buttons']['Held'].items():
-        profile.button_held[0][keycode] = count
+        # Load in the metadata
+        self.created = int(data['Time']['Created'])
+        self.cursor_map.distance = int(data['Distance']['Tracks'])
+        self.cursor_map.counter = int(data['Ticks']['Tracks'])
 
+        # Calculate the active / inactive time
+        # This was not recorded properly in the legacy code, so a very
+        # rough formula is used to estimate based on the data available
+        self.elapsed = data['Ticks']['Total']
+        self.active = int(data['Ticks']['Recorded'] * (data['Ticks']['Total'] / data['Ticks']['Recorded']) ** 0.9)
+        self.inactive = data['Ticks']['Total'] - self.active
 
-def _get_profile_version(zf: zipfile.ZipFile) -> int | None:
-    try:
-        return int(zf.read('version'))
-    except KeyError:
-        return None
+        # Process key/button data
+        for keycode, count in data['Keys']['All']['Pressed'].items():
+            self.key_presses[keycode] = count
+        for keycode, count in data['Keys']['All']['Held'].items():
+            self.key_held[keycode] = count
 
-
-def _get_profile_legacy_version(zf: zipfile.ZipFile) -> int | None:
-    try:
-        return int(zf.read('metadata/file.txt'))
-    except KeyError:
-        return None
+        for keycode, count in data['Gamepad']['All']['Buttons']['Pressed'].items():
+            self.button_presses[0][keycode] = count
+        for keycode, count in data['Gamepad']['All']['Buttons']['Held'].items():
+            self.button_held[0][keycode] = count
 
 
 class TrackingProfileLoader(dict):
@@ -602,6 +639,14 @@ class TrackingProfileLoader(dict):
         else:
             self[profile_name] = profile = TrackingProfile()
             profile.name = profile_name
+
+            # Set disabled profile config
+            if profile_name == TRACKING_DISABLE:
+                profile.config.track_mouse = False
+                profile.config.track_keyboard = False
+                profile.config.track_gamepad = False
+                profile.config.track_network = False
+
         return self[profile_name]
 
 
@@ -620,11 +665,6 @@ def get_profile_names() -> list[str]:
         if os.path.splitext(file.name)[1] != f'.{EXTENSION}':
             continue
         with zipfile.ZipFile(file, 'r') as zf:
-            if _get_profile_version(zf) is None:
-                if _get_profile_legacy_version(zf) != EXPECTED_LEGACY_VERSION:
-                    continue
-                name = os.path.splitext(file.name)[0]
-            else:
-                name = zf.read('metadata/name').decode('utf-8')
+            name = zf.read('metadata/name').decode('utf-8')
         files.append((file.stat().st_mtime, name))
     return [name for modified, name in sorted(files, reverse=True)]
