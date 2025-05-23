@@ -99,17 +99,18 @@ jobs:
           git push origin "$TAG_NAME"
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1.1.4   # Official GitHub Action for creating releases
+        uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is automatically provided by GitHub
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.extract_version.outputs.tag_name }}
-          release_name: ${{ steps.extract_version.outputs.release_name }}
-          body: | # You can customize the release notes body here
-            Released version **${{ steps.extract_version.outputs.version }}**.
+          name: ${{ steps.extract_version.outputs.release_name }} # 'name' is the input for release title in this action
+          body: |
+            Released version ${{ steps.extract_version.outputs.version }}.
 
-            These release notes are based on the commit message that updated `mousetracks2/version.py`:
+            Release notes based on the commit that updated 'mousetracks2/version.py':
             ---
             ${{ github.event.head_commit.message }}
-          draft: false      # Set to 'true' if you want to manually review before publishing
-          prerelease: false # Set to 'true' if this is a pre-release
+          draft: false
+          prerelease: false
+
