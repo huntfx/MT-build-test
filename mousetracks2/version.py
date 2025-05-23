@@ -8,4 +8,4 @@ This process includes:
 2. Publishing a new GitHub Release with this tag.
 3. The release notes will be based on the commit message of this change.
 """
-__version__ = '2.0.11'
+__version__ = '2.0.12'

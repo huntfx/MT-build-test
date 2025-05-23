@@ -13,136 +13,135 @@ jobs:
     runs-on: windows-latest
     permissions: write-all
     steps:
-    - name: Checkout partial repository
-      if: github.ref_type == 'tag'
-      uses: actions/checkout@v4
+      - name: Checkout partial repository
+        if: github.ref_type == 'tag'
+        uses: actions/checkout@v4
 
-    - name: Checkout full repository
-      if: github.ref_type != 'tag'
-      uses: actions/checkout@v4
-      with:
-       fetch-depth: 0
-       fetch-tags: True
+      - name: Checkout full repository
+        if: github.ref_type != 'tag'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
-    - name: Create virtual environment
-      shell: cmd
-      run: |
-        python -m venv .venv
+      - name: Create virtual environment
+        shell: cmd
+        run: |
+          python -m venv .venv
 
-    - name: Create build folder
-      shell: cmd
-      run: |
-        if exist build rmdir build /s /q
-        mkdir build
+      - name: Create build folder
+        shell: cmd
+        run: |
+          if exist build rmdir build /s /q
+          mkdir build
 
-    - name: Update components
-      shell: cmd
-      run: |
-        call .venv\Scripts\activate
-        python -m pip install --upgrade pip wheel
-        call .venv\Scripts\deactivate
+      - name: Update components
+        shell: cmd
+        run: |
+          call .venv\Scripts\activate
+          python -m pip install --upgrade pip wheel
+          call .venv\Scripts\deactivate
 
-    - name: Build PyInstaller Bootloader (${{ env.PYINSTALLER_VERSION }})
-      shell: cmd
-      run: |
-        call .venv\Scripts\activate
+      - name: Build PyInstaller Bootloader (${{ env.PYINSTALLER_VERSION }})
+        shell: cmd
+        run: |
+          call .venv\Scripts\activate
 
-        echo --- Cloning PyInstaller ${{ env.PYINSTALLER_VERSION }} ---
-        git clone --branch ${{ env.PYINSTALLER_VERSION }} --depth 1 https://github.com/pyinstaller/pyinstaller.git build/pyinstaller
-        if errorlevel 1 exit /b 1
+          echo --- Cloning PyInstaller ${{ env.PYINSTALLER_VERSION }} ---
+          git clone --branch ${{ env.PYINSTALLER_VERSION }} --depth 1 https://github.com/pyinstaller/pyinstaller.git build/pyinstaller
+          if errorlevel 1 exit /b 1
 
-        echo --- Building Bootloader ---
-        cd build\pyinstaller\bootloader
-        python ./waf distclean all
-        if errorlevel 1 exit /b 1
-        cd ..
+          echo --- Building Bootloader ---
+          cd build\pyinstaller\bootloader
+          python ./waf distclean all
+          if errorlevel 1 exit /b 1
+          cd ..
 
-        echo --- Installing Custom PyInstaller from build directory ---
-        pip install .
-        if errorlevel 1 exit /b 1
+          echo --- Installing Custom PyInstaller from build directory ---
+          pip install .
+          if errorlevel 1 exit /b 1
 
-        call deactivate
-        echo --- Bootloader build and PyInstaller install complete ---
+          call deactivate
+          echo --- Bootloader build and PyInstaller install complete ---
 
-    - name: Install dependencies
-      shell: cmd
-      run: |
-        call .venv\Scripts\activate
-        python -m pip install --upgrade -r requirements.txt
-        python -m pip install --upgrade -r requirements-build-pyinstaller.txt
-        call .venv\Scripts\deactivate
+      - name: Install dependencies
+        shell: cmd
+        run: |
+          call .venv\Scripts\activate
+          python -m pip install --upgrade -r requirements.txt
+          python -m pip install --upgrade -r requirements-build-pyinstaller.txt
+          call .venv\Scripts\deactivate
 
-    - name: Set version details from tag
-      if: github.ref_type == 'tag'
-      shell: python
-      run: |
-        import os
+      - name: Set version details from tag
+        if: github.ref_type == 'tag'
+        shell: python
+        run: |
+          import os
 
-        tag_name = os.environ['GITHUB_REF_NAME']  # eg. v2.0.0
-        version = tag_name.lstrip('v')  # eg. 2.0.0
+          tag_name = os.environ['GITHUB_REF_NAME']  # eg. v2.0.0
+          version = tag_name.lstrip('v')  # eg. 2.0.0
 
-        print(f"Tag: {tag_name}")
-        print(f"Version: {version}")
+          print(f"Tag: {tag_name}")
+          print(f"Version: {version}")
 
-        with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
-          print(f"VERSION={version}", file=fh_env)
+          with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
+            print(f"VERSION={version}", file=fh_env)
 
-    - name: Extract version details from version.py
-      if: github.ref_type != 'tag'
-      shell: python
-      run: |
-        import os
-        from mousetracks2 import __version__ as version
-        print(f"Version: {version}")
-        with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
-          print(f"VERSION={version}", file=fh_env)
+      - name: Read version details
+        if: github.ref_type != 'tag'
+        shell: python
+        run: |
+          import os
+          from mousetracks2 import __version__ as version
+          print(f"Version: {version}")
+          with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
+            print(f"VERSION={version}", file=fh_env)
 
-    - name: Create version.rc
-      shell: cmd
-      run: |
-        call .venv\Scripts\activate
-        pyivf-make_version --outfile "build\version.rc" --version %VERSION% --file-description "MouseTracks %VERSION%" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "MouseTracks.exe" --product-name "MouseTracks %VERSION%"
-        call .venv\Scripts\deactivate
-        if not exist build\version.rc (
-          echo ERROR: version.rc not created!
-          exit /b 1
-        )
+      - name: Create version.rc
+        shell: cmd
+        run: |
+          call .venv\Scripts\activate
+          pyivf-make_version --outfile "build\version.rc" --version %VERSION% --file-description "MouseTracks %VERSION%" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "MouseTracks.exe" --product-name "MouseTracks %VERSION%"
+          call .venv\Scripts\deactivate
+          if not exist build\version.rc (
+            echo ERROR: version.rc not created!
+            exit /b 1
+          )
 
-    - name: Install UPX
-      shell: powershell
-      run: |
-        Invoke-WebRequest `
-          -Uri https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-win64.zip `
-          -OutFile upx.zip
+      - name: Install UPX
+        shell: powershell
+        run: |
+          Invoke-WebRequest `
+            -Uri https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-win64.zip `
+            -OutFile upx.zip
 
-        Expand-Archive -Path upx.zip -DestinationPath upx
+          Expand-Archive -Path upx.zip -DestinationPath upx
 
-        $upxDir = "$(Resolve-Path upx\upx-5.0.1-win64)"
-        Write-Host "UPX location: $upxDir"
-        echo "PATH=$upxDir;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+          $upxDir = "$(Resolve-Path upx\upx-5.0.1-win64)"
+          Write-Host "UPX location: $upxDir"
+          echo "PATH=$upxDir;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
 
-    - name: Build executable
-      shell: cmd
-      run: |
-        call .venv\Scripts\activate
-        pyinstaller MouseTracks.spec
-        if errorlevel 1 exit /b 1
-        call .venv\Scripts\deactivate
+      - name: Build executable
+        shell: cmd
+        run: |
+          call .venv\Scripts\activate
+          pyinstaller MouseTracks.spec
+          if errorlevel 1 exit /b 1
+          call .venv\Scripts\deactivate
 
-    - name: Attach executable to release
-      if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: dist/MouseTracks.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}  # Permissions: Contents RW
+      - name: Attach executable to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/MouseTracks.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}  # Permissions: Contents RW
 
-    - name: Upload executable as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        path: dist\MouseTracks.exe
+      - name: Upload executable as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: dist\MouseTracks.exe
