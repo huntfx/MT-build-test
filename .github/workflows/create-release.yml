@@ -46,22 +46,28 @@ jobs:
 
       - name: Read version details
         id: extract_version
-        shell: python
+        shell: pwsh
         run: |
-          import os
-          from mousetracks2 import __version__ as version
+          $pythonScript = @'
+            import os
+            import sys
+            from mousetracks2 import __version__ as version
 
-          tag_name = f"v{version}"  # e.g., v1.0.0
-          release_name = f"MouseTracks {version}" # e.g., MouseTracks 2.0.0
+            tag_name = f"v{version}"  # e.g., v1.0.0
+            release_name = f"MouseTracks {version}" # e.g., MouseTracks 2.0.0
 
-          print(f"Extracted Version: {version}")
-          print(f"Generated Tag Name: {tag_name}")
-          print(f"Generated Release Name: {release_name}")
+            print(f"Extracted Version: {version}")
+            print(f"Generated Tag Name: {tag_name}")
+            print(f"Generated Release Name: {release_name}")
 
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-              print(f"version={version}", file=fh)
-              print(f"tag_name={tag_name}", file=fh)
-              print(f"release_name={release_name}", file=fh)
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                print(f"version={version}", file=fh)
+                print(f"tag_name={tag_name}", file=fh)
+                print(f"release_name={release_name}", file=fh)
+          '@
+
+          # Execute the Python script using the venv's Python interpreter
+          & ".venv/Scripts/python.exe" -c $pythonScript
 
       - name: Check if tag already exists
         shell: bash

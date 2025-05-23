@@ -93,13 +93,20 @@ jobs:
 
       - name: Read version details
         if: github.ref_type != 'tag'
-        shell: python
+        id: extract_version
+        shell: pwsh
         run: |
-          import os
-          from mousetracks2 import __version__ as version
-          print(f"Version: {version}")
-          with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
-            print(f"VERSION={version}", file=fh_env)
+          . .venv/Scripts/Activate.ps1
+          $pythonScript = @'
+            import os
+            import sys
+            from mousetracks2 import __version__ as version
+            print(f"Version: {version}")
+            with open(os.environ['GITHUB_ENV'], 'a') as fh_env:
+              print(f"VERSION={version}", file=fh_env)
+          '@
+
+          python -c $pythonCode
 
       - name: Create version.rc
         shell: cmd
