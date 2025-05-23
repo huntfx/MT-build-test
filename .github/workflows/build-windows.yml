@@ -18,8 +18,10 @@ jobs:
         include:
           - architecture: x64
             upx_suffix: win64
+            pyinstaller_arch: 64bit
           - architecture: x86
             upx_suffix: win32
+            pyinstaller_arch: 32bit
     steps:
       - name: Checkout partial repository
         if: github.ref_type == 'tag'
@@ -66,7 +68,7 @@ jobs:
 
           echo --- Building Bootloader ---
           cd build\pyinstaller\bootloader
-          python ./waf distclean all --target-arch=${{ matrix.architecture }}
+          python ./waf distclean all --target-arch=${{ matrix.pyinstaller_arch }}
           if errorlevel 1 exit /b 1
           cd ..
 
