@@ -12,6 +12,14 @@ jobs:
   build:
     runs-on: windows-latest
     permissions: write-all
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x64
+            upx_suffix: win64
+          - architecture: x86
+            upx_suffix: win32
     steps:
       - name: Checkout partial repository
         if: github.ref_type == 'tag'
@@ -23,10 +31,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.11 ${{ matrix.architecture }}
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+          architecture: ${{ matrix.architecture }}
 
       - name: Create virtual environment
         shell: cmd
@@ -57,7 +66,7 @@ jobs:
 
           echo --- Building Bootloader ---
           cd build\pyinstaller\bootloader
-          python ./waf distclean all
+          python ./waf distclean all --target-arch=${{ matrix.architecture }}
           if errorlevel 1 exit /b 1
           cd ..
 
@@ -100,11 +109,24 @@ jobs:
           python .github/scripts/get-version.py
           call .venv\Scripts\deactivate
 
+      - name: Set dynamic executable names
+        id: set_names
+        shell: bash
+        run: |
+          EXE_BASENAME="MouseTracks-${VERSION}-windows-${{ matrix.architecture }}"
+          FULL_EXE_NAME="${EXE_BASENAME}.exe"
+          echo "EXE_BASENAME=${EXE_BASENAME}" >> $GITHUB_ENV
+          echo "FULL_EXE_NAME=${FULL_EXE_NAME}" >> $GITHUB_ENV
+          echo "::set-output name=exe_basename::${EXE_BASENAME}"
+          echo "::set-output name=full_exe_name::${FULL_EXE_NAME}"
+          echo "Executable Basename: ${EXE_BASENAME}"
+          echo "Full Executable Name: ${FULL_EXE_NAME}"
+
       - name: Create version.rc
         shell: cmd
         run: |
           call .venv\Scripts\activate
-          pyivf-make_version --outfile "build\version.rc" --version %VERSION% --file-description "MouseTracks %VERSION%" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "MouseTracks.exe" --product-name "MouseTracks %VERSION%"
+          pyivf-make_version --outfile "build\version.rc" --version "${{ env.VERSION }}" --file-description "${{ env.EXE_BASENAME }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_EXE_NAME }}" --product-name "${{ env.EXE_BASENAME }}"
           call .venv\Scripts\deactivate
           if not exist build\version.rc (
             echo ERROR: version.rc not created!
@@ -115,12 +137,12 @@ jobs:
         shell: powershell
         run: |
           Invoke-WebRequest `
-            -Uri https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-win64.zip `
+            -Uri https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-${{ matrix.upx_suffix }}.zip `
             -OutFile upx.zip
 
-          Expand-Archive -Path upx.zip -DestinationPath upx
+          Expand-Archive -Path upx.zip -DestinationPath upx -Force
 
-          $upxDir = "$(Resolve-Path upx\upx-5.0.1-win64)"
+          $upxDir = "$(Resolve-Path upx\upx-5.0.1-${{ matrix.upx_suffix  }})"
           Write-Host "UPX location: $upxDir"
           echo "PATH=$upxDir;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
 
@@ -128,7 +150,7 @@ jobs:
         shell: cmd
         run: |
           call .venv\Scripts\activate
-          pyinstaller MouseTracks.spec
+          pyinstaller --name "${{ env.EXE_BASENAME }}" MouseTracks.spec
           if errorlevel 1 exit /b 1
           call .venv\Scripts\deactivate
 
@@ -136,11 +158,12 @@ jobs:
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/MouseTracks.exe
+          files: dist/${{ env.FULL_EXE_NAME }}
         env:
-          GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}  # Permissions: Contents RW
+          GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
 
       - name: Upload executable as artifact
         uses: actions/upload-artifact@v4
         with:
-          path: dist\MouseTracks.exe
+          name: MouseTracks-${{ env.VERSION }}-windows-${{ matrix.architecture }}
+          path: dist/${{ env.FULL_EXE_NAME }}

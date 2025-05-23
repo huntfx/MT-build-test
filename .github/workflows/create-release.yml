@@ -84,7 +84,6 @@ jobs:
           subject, *comment_lines = message.splitlines()
           comment = '\n'.join(comment_lines).strip()
 
-          # --- Logging for verification ---
           print("Full commit message received by Python script:")
           print("<<<<<<<<<<")
           print(message)
@@ -94,8 +93,6 @@ jobs:
           print("<<<<<<<<<<")
           print(comment)
           print(">>>>>>>>>>")
-          print("---")
-          # --- End Logging ---
 
           delim = 'EOF_COMMIT_BODY'  # Can be any unique string
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
