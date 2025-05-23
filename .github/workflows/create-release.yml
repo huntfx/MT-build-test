@@ -1,0 +1,115 @@
+name: Create Release on Version Update
+
+on:
+  push:
+    branches:
+      - main  # Or your primary development branch (e.g., master)
+    paths:
+      - 'mousetracks2/version.py' # Ensure this path is correct from the root of your repository
+
+permissions:
+  contents: write # Needed to create tags and releases
+
+jobs:
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs: # Makes these values available if other jobs in this workflow needed them
+      version: ${{ steps.extract_version.outputs.version }}
+      tag_name: ${{ steps.extract_version.outputs.tag_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all history and tags, crucial for checking existing tags
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11' # Or your preferred Python version, matching your build workflow
+
+      - name: Extract version details from version.py
+        id: extract_version
+        shell: python
+        run: |
+          import re
+          import os
+
+          version_file_path = 'mousetracks2/version.py' # Ensure this path is correct
+          try:
+              with open(version_file_path, 'r') as f:
+                  version_content = f.read()
+          except FileNotFoundError:
+              print(f"::error file={version_file_path}::File not found at {version_file_path}")
+              exit(1)
+
+          match = re.search(r"^__version__\s*=\s*['\"]([^'\"]*)['\"]", version_content, re.M)
+
+          if not match:
+            print(f"::error file={version_file_path}::Could not find __version__ string in {version_file_path}. Expected format: __version__ = '1.0.0'")
+            exit(1)
+
+          version = match.group(1)
+          tag_name = f"v{version}"  # e.g., v1.0.0
+          release_name = f"Release {tag_name}" # e.g., Release v1.0.0
+
+          print(f"Extracted Version: {version}")
+          print(f"Generated Tag Name: {tag_name}")
+          print(f"Generated Release Name: {release_name}")
+
+          # Make version, tag_name, and release_name available to subsequent steps via GITHUB_OUTPUT
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+              print(f"version={version}", file=fh)
+              print(f"tag_name={tag_name}", file=fh)
+              print(f"release_name={release_name}", file=fh)
+
+      - name: Check if tag already exists
+        shell: bash
+        run: |
+          TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
+          echo "Checking for existing tag: $TAG_NAME"
+          # git rev-parse exits with non-zero status if tag doesn't exist
+          if git rev-parse --verify "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG_NAME already exists. Halting workflow to prevent duplicate release."
+            echo "Please ensure __version__ in 'mousetracks2/version.py' is incremented to a new version."
+            exit 1
+          else
+            echo "Tag $TAG_NAME does not exist. Proceeding to create tag and release."
+          fi
+
+      - name: Configure Git committer
+        shell: bash
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Create Git Tag and Push
+        shell: bash
+        run: |
+          TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
+          COMMIT_SHA="${{ github.sha }}" # The commit that updated version.py
+          RELEASE_NAME="${{ steps.extract_version.outputs.release_name }}"
+
+          echo "Creating annotated tag $TAG_NAME for commit $COMMIT_SHA"
+          # Create an annotated tag (recommended for releases)
+          git tag -a "$TAG_NAME" -m "$RELEASE_NAME - triggered by commit changing version.py" "$COMMIT_SHA"
+
+          echo "Pushing tag $TAG_NAME to origin"
+          git push origin "$TAG_NAME"
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1   # Official GitHub Action for creating releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is automatically provided by GitHub
+        with:
+          tag_name: ${{ steps.extract_version.outputs.tag_name }}
+          release_name: ${{ steps.extract_version.outputs.release_name }}
+          body: | # You can customize the release notes body here
+            Released version **${{ steps.extract_version.outputs.version }}**.
+
+            These release notes are based on the commit message that updated `mousetracks2/version.py`:
+            ---
+            ${{ github.event.head_commit.message }}
+          draft: false      # Set to 'true' if you want to manually review before publishing
+          prerelease: false # Set to 'true' if this is a pre-release
