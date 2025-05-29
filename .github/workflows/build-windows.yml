@@ -20,6 +20,8 @@ jobs:
         include:
           - bits: 64
             architecture: x64
+          - bits: 64
+            architecture: arm64
 
     steps:
       - name: Checkout partial repository
