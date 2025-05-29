@@ -18,4 +18,4 @@ kept simple. The recommend commit message format is as follows:
     - Fixed potential crash when thing happens (<commit_sha>)
 """
 
-VERSION = '2.1.5'
+VERSION = '2.1.6'
