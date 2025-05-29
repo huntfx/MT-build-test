@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import math
+import random
 import re
 import sys
 import time
@@ -14,21 +15,23 @@ from typing import cast, Any, Generic, Iterable, TypeVar, TYPE_CHECKING
 from PIL import Image
 from PySide6 import QtCore, QtWidgets, QtGui
 
+from .about import AboutWindow
 from .applist import AppListWindow
 from .ui import layout
-from .utils import format_distance, format_ticks, format_bytes, ICON_PATH
+from .utils import format_distance, format_ticks, format_bytes, format_network_speed, ICON_PATH
 from .widgets import Pixel
 from ..components import ipc
 from ..constants import SYS_EXECUTABLE
 from ..config.cli import CLI
 from ..config.settings import GlobalConfig
 from ..constants import COMPRESSION_FACTOR, COMPRESSION_THRESHOLD, DEFAULT_PROFILE_NAME, RADIAL_ARRAY_SIZE
-from ..constants import UPDATES_PER_SECOND, INACTIVITY_MS, IS_EXE, SHUTDOWN_TIMEOUT
+from ..constants import UPDATES_PER_SECOND, INACTIVITY_MS, IS_EXE, SHUTDOWN_TIMEOUT, TRACKING_DISABLE
 from ..file import PROFILE_DIR, get_profile_names, get_filename
 from ..legacy import colours
+from ..update import is_latest_version
 from ..utils import keycodes, get_cursor_pos
 from ..utils.math import calculate_line, calculate_distance, calculate_pixel_offset
-from ..utils.system import monitor_locations, get_autostart, set_autostart, remove_autostart
+from ..utils.system import monitor_locations, check_autostart, set_autostart, remove_autostart
 
 if TYPE_CHECKING:
     from ..components.gui import GUI
@@ -157,6 +160,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._render_colour = RenderOption('Ice', 'Ice', 'Jet', 'Aqua')
         self._contrast = RenderOption(1.0, 1.0, 1.0, 1.0)
         self._sampling = RenderOption(4, 4, 4, 4)
+        self._sampling_preview = RenderOption(0, 0, 1, 1)
         self._padding = RenderOption(0, 0, 0, 0)
         self._clipping = RenderOption(0.0, 0.0, 0.001, 0.0)
         self._blur = RenderOption(0.0, 0.0, 0.0125, 0.0)
@@ -171,7 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.output_logs.setVisible(False)
         self.ui.record_history.setVisible(False)
         self.ui.tray_context_menu.menuAction().setVisible(False)
-        self.ui.prefs_autostart.setChecked(get_autostart('MouseTracks'))
+        self.ui.prefs_autostart.setChecked(check_autostart())
         self.ui.prefs_automin.setChecked(self.config.minimise_on_start)
         self.ui.prefs_console.setChecked(not IS_EXE)
         self.ui.prefs_track_mouse.setChecked(self.config.track_mouse)
@@ -264,6 +268,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.show_left_clicks.toggled.connect(self.show_clicks_changed)
         self.ui.show_middle_clicks.toggled.connect(self.show_clicks_changed)
         self.ui.show_right_clicks.toggled.connect(self.show_clicks_changed)
+        self.ui.sampling.valueChanged.connect(self.sampling_changed)
         self.ui.colour_option.currentTextChanged.connect(self.render_colour_changed)
         self.ui.auto_switch_profile.stateChanged.connect(self.toggle_auto_switch_profile)
         self.ui.thumbnail_refresh.clicked.connect(self.request_thumbnail)
@@ -277,8 +282,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.lock_aspect.stateChanged.connect(self.lock_aspect_changed)
         self.ui.custom_width.valueChanged.connect(self.render_resolution_value_changed)
         self.ui.custom_height.valueChanged.connect(self.render_resolution_value_changed)
-        self.ui.enable_custom_width.stateChanged.connect(self.render_resolution_state_changed)
-        self.ui.enable_custom_height.stateChanged.connect(self.render_resolution_state_changed)
+        self.ui.enable_custom_width.stateChanged.connect(self.custom_width_toggle)
+        self.ui.enable_custom_height.stateChanged.connect(self.custom_height_toggle)
+        self.ui.thumbnail_sampling.valueChanged.connect(self.sampling_preview_changed)
         self.ui.applist_reload.clicked.connect(self.reload_applist)
         self.ui.track_mouse.stateChanged.connect(self.handle_delete_button_visibility)
         self.ui.track_keyboard.stateChanged.connect(self.handle_delete_button_visibility)
@@ -321,6 +327,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.link_facebook.triggered.connect(self.open_url)
         self.ui.link_github.triggered.connect(self.open_url)
         self.ui.link_reddit.triggered.connect(self.open_url)
+        self.ui.link_donate.triggered.connect(self.open_url)
+        self.ui.about.triggered.connect(self.about)
+        self.ui.tip.linkActivated.connect(webbrowser.open)
         self.timer_activity.timeout.connect(self.update_activity_preview)
         self.timer_activity.timeout.connect(self.update_time_since_save)
         self.timer_activity.timeout.connect(self.update_time_since_thumbnail)
@@ -341,15 +350,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Trigger initial setup
         self.profile_changed(0)
+        self.ui.show_advanced.setChecked(False)
+
+        # Set tip
+        tips = ['tip_tracking']
+        if not is_latest_version():
+            tips.append('tip_update')
+        self.ui.tip.setText(f'Tip: {self.ui.tip.property(random.choice(tips))}')
 
     @QtCore.Slot()
     def open_url(self) -> None:
         """Open a URL from the selected action.
         Requires the action to have a "website" property.
         """
-        action: QtGui.QAction = self.sender()
+        action= cast(QtGui.QAction, self.sender())
         url: QtCore.QUrl = action.property('website')
         webbrowser.open(url.toString())
+
+    @QtCore.Slot()
+    def about(self) -> None:
+        """Load the "about" window."""
+        win = AboutWindow(self)
+        win.exec_()
 
     @property
     def pixel_colour(self) -> QtGui.QColor:
@@ -407,11 +429,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load in other settings
         self.ui.contrast.setValue(self.contrast)
         self.ui.sampling.setValue(self.sampling)
+        self.ui.thumbnail_sampling.setValue(self.sampling_preview)
         self.ui.padding.setValue(self.padding)
         self.ui.clipping.setValue(self.clipping)
         self.ui.blur.setValue(self.blur)
         self.ui.linear.setChecked(self.linear)
-        self._set_advanced_visibility()
+        self.toggle_advanced_options(self.ui.show_advanced.isChecked())
 
         self.pause_colour_change = False
 
@@ -446,6 +469,16 @@ class MainWindow(QtWidgets.QMainWindow):
     def sampling(self, value: int) -> None:
         """Set a new sampling value for the current render type."""
         self._sampling.set(self.render_type, value)
+
+    @property
+    def sampling_preview(self) -> int:
+        """Get the thumbnail sampling for the current render type."""
+        return self._sampling_preview.get(self.render_type)
+
+    @sampling_preview.setter
+    def sampling_preview(self, value: int) -> None:
+        """Set a new thumbnail sampling value for the current render type."""
+        self._sampling_preview.set(self.render_type, value)
 
     @property
     def padding(self) -> int:
@@ -774,13 +807,16 @@ class MainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot(int)
     def profile_changed(self, idx: int) -> None:
         """Change the profile and trigger a redraw."""
-        self.ui.tab_options.setTabText(1, f'{self.ui.current_profile.itemData(idx)} Options')
+        profile_name = self.ui.current_profile.itemData(idx)
+        self.ui.tab_options.setTabText(1, f'{profile_name} Options')
 
         if not self._redrawing_profiles:
-            self.request_profile_data(self.ui.current_profile.itemData(idx))
+            self.request_profile_data(profile_name)
             if idx:
                 self.ui.auto_switch_profile.setChecked(False)
             self.set_profile_modified_text()
+
+        self.ui.tracking_group.setEnabled(profile_name != TRACKING_DISABLE)
 
     def request_profile_data(self, profile_name: str) -> None:
         """Request loading profile data."""
@@ -837,6 +873,14 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.sampling = value
 
+    @QtCore.Slot(int)
+    def sampling_preview_changed(self, value: int) -> None:
+        """Update the render when the sampling is changed."""
+        if self.pause_colour_change:
+            return
+        self.sampling_preview = value
+        self.request_thumbnail()
+
     @QtCore.Slot(str)
     def render_colour_changed(self, colour: str) -> None:
         """Update the render when the colour is changed."""
@@ -892,20 +936,27 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot(int)
     def render_resolution_value_changed(self, value: int) -> None:
-        """Update the thumbnail when a custom resolution is set.
-        This is only enabled when both resolution values are set.
-        """
-        if not self.ui.lock_aspect.isChecked() and self.ui.custom_width.isEnabled() and self.ui.custom_height.isEnabled():
+        """Update the thumbnail when a custom resolution is set."""
+        if self.ui.custom_width.isEnabled() or self.ui.custom_height.isEnabled():
             self.request_thumbnail()
 
     @QtCore.Slot(QtCore.Qt.CheckState)
-    def render_resolution_state_changed(self, state: QtCore.Qt.CheckState) -> None:
-        """Update the thumbnail when a custom resolution is set.
-        This is limited to when the aspect is unlocked, otherwise it
-        would have no affect.
-        """
-        if not self.ui.lock_aspect.isChecked():
-            self.request_thumbnail()
+    def custom_width_toggle(self, state: QtCore.Qt.CheckState) -> None:
+        """Update the thumbnail when custom width is toggled."""
+        self.request_thumbnail()
+
+        # Reset to current width
+        if state == QtCore.Qt.CheckState.Unchecked.value:
+            self.ui.custom_width.setValue(self.ui.thumbnail.size().width())
+
+    @QtCore.Slot(QtCore.Qt.CheckState)
+    def custom_height_toggle(self, state: QtCore.Qt.CheckState) -> None:
+        """Update the thumbnail when custom height is toggled."""
+        self.request_thumbnail()
+
+        # Reset to current height
+        if state == QtCore.Qt.CheckState.Unchecked.value:
+            self.ui.custom_height.setValue(self.ui.thumbnail.size().height())
 
     @QtCore.Slot(QtCore.Qt.CheckState)
     def toggle_auto_switch_profile(self, state: QtCore.Qt.CheckState) -> None:
@@ -968,7 +1019,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.isVisible():
             return False
 
-        self._timer_thumbnail_update.start(10)
+        self._timer_thumbnail_update.start(100)
         return True
 
     def _request_thumbnail(self) -> bool:
@@ -994,38 +1045,60 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.start_rendering_timer()
 
-        aspect = self.thumbnail_aspect
-        if aspect is not None:
-            if aspect > width / height:
-                height = round(width / aspect)
+        # Handle custom resolution
+        custom_width = self.ui.custom_width.value()
+        custom_height = self.ui.custom_height.value()
+        use_custom_width = self.ui.custom_width.isEnabled()
+        use_custom_height = self.ui.custom_height.isEnabled()
+        lock_aspect = self.ui.lock_aspect.isChecked()
+        if not lock_aspect and (use_custom_width or use_custom_height):
+
+            # Set the aspect ratio to requested
+            aspect_ratio = custom_width / custom_height
+            if aspect_ratio > width / height:
+                height = round(width / aspect_ratio)
             else:
-                width = round(height * aspect)
+                width = round(height * aspect_ratio)
+
+        # Ensure resolutions aren't greater than requested
+        if use_custom_width:
+            width = min(width, custom_width)
+        if use_custom_height:
+            height = min(height, custom_height)
+
         self.component.send_data(ipc.RenderRequest(self.render_type,
-                                                   width=width, height=height, lock_aspect=aspect is None,
+                                                   width=width, height=height, lock_aspect=lock_aspect,
                                                    profile=profile, file_path=None,
                                                    colour_map=self.render_colour, padding=self.padding,
+                                                   sampling=self.ui.thumbnail_sampling.value(),
                                                    contrast=self.contrast, clipping=self.clipping,
                                                    blur=self.blur, linear=self.linear,
                                                    show_left_clicks=self.ui.show_left_clicks.isChecked(),
                                                    show_middle_clicks=self.ui.show_middle_clicks.isChecked(),
-                                                   show_right_clicks=self.ui.show_right_clicks.isChecked(),
-                                                   ))
+                                                   show_right_clicks=self.ui.show_right_clicks.isChecked()))
         return True
 
     @QtCore.Slot(QtCore.QSize)
-    def thumbnail_resize(self, size) -> None:
+    def thumbnail_resize(self, size: QtCore.QSize) -> None:
         """Start the resize timer when the thumbnail changes size.
         This prevents constant render requests as it will only trigger
         after resizing has finished.
         """
-        self._timer_resize.start(10)
+        self._timer_resize.start(100)
+
+        if not self.ui.enable_custom_width.isChecked():
+            self.ui.custom_width.setValue(size.width())
+        if not self.ui.enable_custom_height.isChecked():
+            self.ui.custom_height.setValue(size.height())
 
     @QtCore.Slot(bool)
     def thumbnail_click(self, state: bool) -> None:
         """Handle what to do when the thumbnail is clicked."""
         if state:
+            self.notify(f'{self.windowTitle()} has resumed tracking.')
             self.start_tracking()
         else:
+            self.notify(f'{self.windowTitle()} has paused tracking.')
             self.pause_tracking()
 
     def request_render(self) -> None:
@@ -1059,11 +1132,14 @@ class MainWindow(QtWidgets.QMainWindow):
             case _:
                 name = 'Tracks'
         profile_safe = re.sub(r'[^\w_.)( -]', '', profile)
-        filename = f'[{format_ticks(self.elapsed_time)}][{self.render_colour}] {profile_safe} - {name}.png'
-        file_path, accept = dialog.getSaveFileName(None,
-                                                   'Save Image',
-                                                   str(Path.home() / 'Pictures' / filename),
-                                                   'Image Files (*.png)')
+
+        image_dir = Path.home() / 'Pictures'
+        if image_dir.exists():
+            image_dir /= 'MouseTracks'
+            if not image_dir.exists():
+                image_dir.mkdir()
+        image_dir /= f'[{format_ticks(self.elapsed_time)}][{self.render_colour}] {profile_safe} - {name}.png'
+        file_path, accept = dialog.getSaveFileName(None, 'Save Image', str(image_dir), 'Image Files (*.png)')
 
         if accept:
             width = self.ui.custom_width.value() if self.ui.custom_width.isEnabled() else None
@@ -1186,8 +1262,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 height, width, channels = message.array.shape
                 failed = width == height == 0
 
-                target_height = int(height / message.request.sampling)
-                target_width = int(width / message.request.sampling)
+                target_height = int(height / (message.request.sampling or 1))
+                target_width = int(width / (message.request.sampling or 1))
 
                 # Draw the new pixmap
                 if message.request.file_path is None:
@@ -1213,7 +1289,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         image = QtGui.QImage(message.array.data, width, height, stride, image_format)
 
                         # Scale the QImage to fit the pixmap size
-                        scaled_image = image.scaled(target_width, target_height, QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+                        scaled_image = image.scaled(target_width, target_height, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
                         self.ui.thumbnail.set_pixmap(scaled_image)
 
                     self.pause_redraw -= 1
@@ -1372,9 +1448,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     self.ui.track_network.setEnabled(finished_loading)
 
-            case ipc.DataTransfer() if self.is_live and self.ui.track_network.isChecked():
-                self.bytes_sent += message.bytes_sent
-                self.bytes_recv += message.bytes_recv
+            case ipc.DataTransfer():
+                if self.is_live and self.ui.track_network.isChecked():
+                    self.bytes_sent += message.bytes_sent
+                    self.bytes_recv += message.bytes_recv
+
+                    self.ui.stat_download_current.setText(format_network_speed(message.bytes_recv))
+                    self.ui.stat_upload_current.setText(format_network_speed(message.bytes_sent))
+
+                else:
+                    self.ui.stat_download_current.setText(format_network_speed(0))
+                    self.ui.stat_upload_current.setText(format_network_speed(0))
 
             case ipc.SaveComplete():
                 self._last_save_message = message
@@ -1436,11 +1520,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.ui.stat_app_detection_queue.setText(str(message.app_detection))
 
                 if self.state == ipc.TrackingState.Running:
-                    self.ui.stat_tracking_state.setText('Running' if message.tracking <= 1 else 'Busy')
-                    self.ui.stat_processing_state.setText('Running' if message.processing <= 1 else 'Busy')
-                    self.ui.stat_hub_state.setText('Running' if message.hub <= 1 else 'Busy')
-                    self.ui.stat_hub_state.setToolTip(str(message.processing))
-                    self.ui.stat_app_state.setText('Running' if message.app_detection <= 1 else 'Busy')
+                    self.ui.stat_tracking_state.setText('Running' if message.tracking <= 5 else 'Busy')
+                    self.ui.stat_processing_state.setText('Running' if message.processing <= 5 else 'Busy')
+                    self.ui.stat_hub_state.setText('Running' if message.hub <= 5 else 'Busy')
+                    self.ui.stat_app_state.setText('Running' if message.app_detection <= 5 else 'Busy')
                 else:
                     for widget in (self.ui.stat_tracking_state, self.ui.stat_processing_state,
                                    self.ui.stat_hub_state, self.ui.stat_app_state):
@@ -1559,7 +1642,7 @@ class MainWindow(QtWidgets.QMainWindow):
         elif self.isVisible():
             self.hide()
 
-    def load_from_tray(self):
+    def load_from_tray(self) -> None:
         """Load the window from the tray icon.
         If the window is only minimised to the taskbar, then `show()`
         will be ignored.
@@ -1567,7 +1650,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.isMinimized():
             self.setWindowState(QtCore.Qt.WindowState.WindowActive)
 
-        if not self.isVisible():
+        if self.isVisible():
+            self.raise_()
+            self.activateWindow()
+
+        else:
             self.show()
 
             if self.ui.full_screen.isChecked():
@@ -1809,31 +1896,28 @@ class MainWindow(QtWidgets.QMainWindow):
             redraw_queue, self.redraw_queue = self.redraw_queue, []
             self.ui.thumbnail.update_pixels(*redraw_queue)
 
-    @property
-    def thumbnail_aspect(self) -> float | None:
-        """Determine the aspect ratio of the thumbnail.
-        If the aspect is automatically calculated it will return None.
-        """
-        if self.ui.lock_aspect.isChecked():
-            return None
-
-        width = self.ui.custom_width.value() if self.ui.custom_width.isEnabled() else None
-        height = self.ui.custom_height.value() if self.ui.custom_height.isEnabled() else None
-
-        if width is None or height is None:
-            return self.ui.thumbnail.width() / self.ui.thumbnail.height()
-        return width / height
-
     def update_thumbnail_size(self) -> None:
         """Set a new thumbnail size after the window has finished resizing."""
-        if self.thumbnail_aspect is None:
+        width = self.ui.thumbnail.width()
+        height = self.ui.thumbnail.height()
+        custom_width = self.ui.custom_width.isEnabled()
+        custom_height = self.ui.custom_height.isEnabled()
+        lock_aspect = self.ui.lock_aspect.isChecked()
+
+        # If the aspect is locked, or both width and height are set
+        if lock_aspect or (custom_width and custom_height):
             aspect_mode = QtCore.Qt.AspectRatioMode.KeepAspectRatio
+
+        # If the custom width or height is too low
+        elif custom_width < width or custom_height < height:
+            aspect_mode = QtCore.Qt.AspectRatioMode.KeepAspectRatio
+
+        # Allow the render to fill the widget
         else:
             aspect_mode = QtCore.Qt.AspectRatioMode.IgnoreAspectRatio
 
         if self.ui.thumbnail.freeze_scale(aspect_mode):
             self.request_thumbnail()
-            return
 
     def delete_mouse(self) -> None:
         """Request deletion of mouse data for the current profile."""
@@ -2051,10 +2135,13 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         if value:
-            set_autostart('MouseTracks', SYS_EXECUTABLE, '--autostart')
+            args = sys.argv
+            if args and os.path.normpath(args[0]) == os.path.normpath(SYS_EXECUTABLE):
+                args = args[1:]
+            set_autostart(*args, '--autostart')
 
         else:
-            remove_autostart('MouseTracks')
+            remove_autostart()
 
         self.notify(f'{self.windowTitle()} will {"now" if value else "no longer"} launch when Windows starts.')
 
@@ -2099,10 +2186,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.main_layout.setContentsMargins(QtCore.QMargins(0, 0, 0, 0) if full_screen else self._margins_main)
         self.ui.render_layout.setContentsMargins(QtCore.QMargins(0, 0, 0, 0) if full_screen else self._margins_render)
 
-    def _set_advanced_visibility(self):
+    @QtCore.Slot(bool)
+    def toggle_advanced_options(self, show_advanced: bool) -> None:
         """Set the visibility of render option widgets."""
-        show_advanced = self.ui.show_advanced.isChecked()
-
         is_click = self.render_type in (ipc.RenderType.SingleClick, ipc.RenderType.DoubleClick, ipc.RenderType.HeldClick)
         is_thumbstick = self.render_type in (ipc.RenderType.Thumbstick_Time, ipc.RenderType.Thumbstick_Speed, ipc.RenderType.Thumbstick_Heatmap)
         is_keyboard = self.render_type == ipc.RenderType.Keyboard
@@ -2115,6 +2201,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._buddies[self.ui.contrast].setVisible(show_advanced and not is_keyboard)
         self.ui.sampling.setVisible(show_advanced)
         self._buddies[self.ui.sampling].setVisible(show_advanced)
+        self.ui.thumbnail_sampling.setVisible(show_advanced)
+        self._buddies[self.ui.thumbnail_sampling].setVisible(show_advanced)
         self.ui.padding.setVisible(show_advanced and not is_keyboard)
         self._buddies[self.ui.padding].setVisible(show_advanced and not is_keyboard)
         self.ui.clipping.setVisible(show_advanced and not is_keyboard)
@@ -2125,21 +2213,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.ui.resolution_group.setVisible(show_advanced and not is_keyboard)
 
-    @QtCore.Slot(bool)
-    def toggle_advanced_options(self, enabled: bool) -> None:
-        """Update visibility of widgets when the advanced button is toggled."""
-        self._set_advanced_visibility()
-
     def notify(self, message: str) -> None:
         """Show a notification.
         If the tray messages are not available, a popup will be shown.
         """
         if self.tray is None or not self.tray.supportsMessages():
-            msg = QtWidgets.QMessageBox(self)
-            msg.setWindowTitle(self.windowTitle())
-            msg.setIcon(QtWidgets.QMessageBox.Icon.Information)
-            msg.setText(message)
-            msg.exec_()
+            if self.isVisible():
+                msg = QtWidgets.QMessageBox(self)
+                msg.setWindowTitle(self.windowTitle())
+                msg.setIcon(QtWidgets.QMessageBox.Icon.Information)
+                msg.setText(message)
+                msg.exec_()
         else:
             self.tray.showMessage(self.windowTitle(), message, self.tray.icon(), 2000)
 

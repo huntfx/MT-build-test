@@ -29,9 +29,11 @@ class AppDetection(Component):
         self._previous_pos: tuple[int, int] | None = None
         self._previous_res: tuple[int, int] | None = None
         self._previous_rects: list[tuple[int, int, int, int]] = []
+        self._fallback_title = ''
+        self._fallback_pid = PID(0)
 
         # Cache each process in case the fallback is required
-        deque(psutil.process_iter(attrs=['pid', 'exe']), maxlen=0)
+        deque(psutil.process_iter(attrs=['pid', 'exe', 'create_time']), maxlen=0)
 
     def _pid_fallback(self, title: str) -> PID:
         """Guess the PID of the selected application.
@@ -41,18 +43,39 @@ class AppDetection(Component):
         PID, which indicates it's the most recently loaded.
 
         See the `WindowHandle` class for more details of why this is
-        necessary. This method is not foolproof, and loading a new
-        tracked application will cause that one to take priority even
-        if it's not focused.
+        necessary. This method is not foolproof, and has been tweaked
+        multiple times to try and make it work 100% of the time for the
+        one use case I've come across.
         """
-        matched = PID(0)
-        for proc in psutil.process_iter(attrs=['pid', 'exe']):
+        matched_procs = []  # type: list[psutil.Process]
+        invalid_exes = set()  # type: set[str]
+        for proc in psutil.process_iter(attrs=['pid', 'exe', 'create_time']):
             pid = PID(proc.info['pid'])
-            if proc.info['exe'] is None or pid.hwnds:
-                continue
-            if self.applist.match(proc.info['exe'], title):
+
+            # Ignore if no executable
+            if proc.info['exe'] is None:
+                pass
+
+            # If there are window handles, it's not valid for the callback
+            elif pid.hwnds:
+                invalid_exes.add(proc.info['exe'])
+
+            # Check for a match
+            elif proc.info['exe'] not in invalid_exes and self.applist.match(proc.info['exe'], title):
                 print(f'[Application Detection] Fallback matched "{proc.info["exe"]}" with PID {proc.info["pid"]}')
-                matched = pid
+                matched_procs.append(proc)
+
+        # Sort by the latest creation time
+        matched_procs.sort(key=lambda proc: proc.info['create_time'], reverse=True)
+
+        # Find the first matched process without any valid hwnds
+        for proc in matched_procs:
+            if proc.info['exe'] not in invalid_exes:
+                matched = PID(proc.info['pid'])
+                break
+        else:
+            matched = PID(0)
+
         print(f'[Application Detection] Fallback returning PID {int(matched)}')
         return matched
 
@@ -64,9 +87,24 @@ class AppDetection(Component):
         handle = WindowHandle(hwnd)
         title = handle.title
         pid = handle.pid
-        if pid == 0:
-            print('[Application Detection] PID returned 0, running fallback function...')
-            pid = self._pid_fallback(title)
+
+        # Fallback is required
+        if pid == 0 and title:
+            # The title matches so reuse the match
+            if title == self._fallback_title:
+                pid = self._fallback_pid
+
+            # Find a new match
+            else:
+                print(f'[Application Detection] PID returned 0 for an app with title "{title}",'
+                      'running fallback function...')
+                pid = self._fallback_pid = self._pid_fallback(title)
+                self._fallback_title = title
+
+        # Reset the fallback data
+        else:
+            self._fallback_pid = PID(0)
+            self._fallback_title = ''
 
         exe = handle.pid.executable
         focus_changed = False
