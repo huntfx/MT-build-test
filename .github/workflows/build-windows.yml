@@ -85,6 +85,14 @@ jobs:
 
           call deactivate
 
+      - name: Setup MSVC Developer Command Prompt for ARM64
+        if: ${{ matrix.architecture }} == 'arm64'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: arm64 # Specify ARM64 architecture
+          # You might also need to specify a Visual Studio version if the default isn't suitable
+          # vsversion: '2022'
+
       - name: Install dependencies
         shell: cmd
         run: |
