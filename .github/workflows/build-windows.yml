@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os_runner }}
     permissions: write-all
 
     strategy:
@@ -18,8 +18,12 @@ jobs:
       matrix:
         # 32 bit python not included as PySide6 not compatible
         include:
-          - bits: 64
+          - os_runner: windows-latest
+            bits: 64
             architecture: x64
+          - os_runner: windows-arm64-latest
+            bits: 64
+            architecture: arm64
 
     steps:
       - name: Checkout partial repository
