@@ -96,6 +96,8 @@ jobs:
           subject, *comment_lines = message.splitlines()
           comment = '\n'.join(comment_lines).strip()
           comment = comment.replace('\n# ', '\n### ').replace('\n## ', '\n ###')
+          if comment.startswith('# '):
+            comment = f'##{comment}'
 
           print("Full commit message received by Python script:")
           print("<<<<<<<<<<")
