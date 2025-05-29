@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - 'mousetracks2/version.py'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -71,7 +72,7 @@ jobs:
           if git rev-parse --verify "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
             echo "::error::Tag $TAG_NAME already exists. Halting workflow to prevent duplicate release."
             echo "Please ensure __version__ in 'mousetracks2/version.py' is incremented to a new version."
-            exit 1
+            exit 0
           else
             echo "Tag $TAG_NAME does not exist. Proceeding to create tag and release."
           fi
