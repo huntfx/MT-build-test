@@ -21,9 +21,6 @@ jobs:
           - os_runner: windows-latest
             bits: 64
             architecture: x64
-          - os_runner: windows-11-arm
-            bits: 64
-            architecture: arm64
 
     steps:
       - name: Checkout partial repository
