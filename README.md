@@ -45,7 +45,7 @@ MouseTracks is an application designed to track and visualize mouse movements, c
 - ### Stability
   A lot of effort has been put into making this as error free as possible, so it will happily keep running for years without any issues.
 
-MouseTracks is and will always remain free, but if you enjoy using it and would like to [buy me a pint](https://www.paypal.me/PeterHunt999) in appreciation (as I don't like coffee), then that would be very kind.
+MouseTracks is and will always remain free, but if you enjoy using it and would like to [buy me a pint](https://ko-fi.com/huntfx) in appreciation (as I don't like coffee), then that would be very kind.
 
 Questions? Check out the [FAQ](https://github.com/huntfx/MouseTracks/wiki#faq), or [raise an issue](https://github.com/huntfx/MouseTracks/issues) if you can't find an answer.
 
@@ -59,7 +59,7 @@ _Currently, only Windows is supported. Contributions for Linux or macOS support 
 
 Launch `MouseTracks.exe` from anywhere. Recommended for ease of use.
 
-Build it using [`build-pyinstaller.bat`](build-pyinstaller.bat), or download it from the releases.
+Download it from the [latest release](https://github.com/huntfx/MouseTracks/releases/latest), or build it yourself using [`build-pyinstaller.bat`](build-pyinstaller.bat)
 
 It's also possible to run [`build-nuitka.bat`](build-nuitka.bat), but this is not recommended unless you have a commercial license, as it will be flagged by a lot of AV programs.
 
