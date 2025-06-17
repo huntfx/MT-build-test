@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import Literal
+
 import numpy as np
 
 from ..config.settings import ProfileConfig
@@ -152,7 +154,7 @@ class Traceback(Message):
     exception: Exception
     traceback: str
 
-    def reraise(self):
+    def reraise(self) -> None:
         """Re-raise the exception.
         Since the full traceback isn't accessible from a different
         thread, replicate Python's behaviour by showing both exceptions.
@@ -221,6 +223,12 @@ class RenderRequest(Message):
     show_left_clicks: bool = True
     show_middle_clicks: bool = True
     show_right_clicks: bool = True
+    show_count: bool = True
+    show_time: bool = False
+    interpolation_order: Literal[0, 1, 2, 3, 4, 5] = 0
+
+    def __post_init__(self) -> None:
+        assert self.show_count != self.show_time
 
 
 @dataclass
@@ -507,8 +515,17 @@ class CloseSplashScreen(Message):
 
 
 @dataclass
-class LoadLegacyProfile(Message):
-    """Send a request to load an old profile."""
+class ImportProfile(Message):
+    """Send a request to import a profile."""
+
+    target: int = field(default=Target.Processing | Target.GUI, init=False)
+    name: str
+    path: str
+
+
+@dataclass
+class ImportLegacyProfile(Message):
+    """Send a request to import a legacy profile."""
 
     target: int = field(default=Target.Processing | Target.GUI, init=False)
     name: str

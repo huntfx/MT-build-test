@@ -7,23 +7,30 @@ Components:
     - cli
 """
 
+from __future__ import annotations
+
 import sys
 import time
 import traceback
 import multiprocessing
 import queue
+from typing import TYPE_CHECKING
 
 from . import app_detection, gui, ipc, processing, tracking
 from ..gui.splash import SplashScreen
 from ..config.cli import CLI
-from ..constants import CHECK_COMPONENT_FREQUENCY, IS_EXE, UPDATES_PER_SECOND
+from ..config.settings import GlobalConfig
+from ..constants import IS_EXE, UPDATES_PER_SECOND
 from ..exceptions import ExitRequest
+
+if TYPE_CHECKING:
+    from ..utils.system.win32 import WindowHandle
 
 
 class Hub:
     """Set up individual components with queues for communication."""
 
-    def __init__(self, use_gui: bool = True):
+    def __init__(self, use_gui: bool = True) -> None:
         """Initialise the hub with queues and processes."""
         self.state = ipc.TrackingState.Paused
         self.use_gui = use_gui
@@ -37,6 +44,11 @@ class Hub:
         self._p_gui.daemon = True
         self._create_tracking_processes()
 
+        # Disable show/hide if console is already hidden
+        handle = self._get_console_handle()
+        if handle is None or not handle.visible or not handle.pid or not handle.title:
+            self._q_main.put(ipc.InvalidConsole())
+
     def start_tracking(self) -> None:
         """Start the tracking.
         This will load the threads and send a signal to them.
@@ -44,7 +56,7 @@ class Hub:
         print('[Hub] Sending start tracking signal...')
         self._process_message(ipc.StartTracking())
 
-    def stop_tracking(self):
+    def stop_tracking(self) -> None:
         """Stop the tracking processes.
 
         A stop signal is pushed to the queue, so that the processes can
@@ -127,7 +139,7 @@ class Hub:
         self._p_app_detection.daemon = True
         self._p_app_detection.start()
 
-    def _startup_tracking_processes(self):
+    def _startup_tracking_processes(self) -> None:
         """Ensure the tracking processes exist.
         This will check that previous ones are shut down before starting
         up new ones.
@@ -205,25 +217,29 @@ class Hub:
         if message.target & ipc.Target.AppDetection:
             self._q_app_detection.put(message)
 
+    def _get_console_handle(self) -> WindowHandle | None:
+        """Get the handle to the console."""
+        if sys.platform == 'win32':
+            from ..utils.system.win32 import WindowHandle, get_window_handle
+            return WindowHandle(get_window_handle(console=True))
+        return None
+
     def _toggle_console(self, show: bool) -> None:
         """Show or hide the console."""
-        if sys.platform != 'win32':
-            return
-
-        from ..utils.system.win32 import WindowHandle, get_window_handle
-        hwnd = get_window_handle(console=True)
-        handle = WindowHandle(hwnd)
-        if handle.pid:
-            handle.show() if show else handle.hide()
-        else:
+        handle = self._get_console_handle()
+        if handle is None or not handle.pid or not handle.title:
             self._q_main.put(ipc.InvalidConsole())
+        elif show:
+            handle.show()
+        else:
+            handle.hide()
 
     def _test_components(self) -> None:
         """Check that all components are running.
         If this fails an error will be raised.
         """
         current_time = time.time()
-        if self._previous_component_check + CHECK_COMPONENT_FREQUENCY > current_time:
+        if self._previous_component_check + GlobalConfig.component_check_frequency > current_time:
             return
 
         if self.state == ipc.TrackingState.Running:

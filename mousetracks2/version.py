@@ -1,13 +1,12 @@
-"""Define the application version.
+"""Set the current application version.
 This is used for both the application and build process.
 
-IMPORTANT: Modifying the `__version__` string below and committing this
-file to the main branch will automatically trigger a new software release.
-This process includes:
-1. Creating a Git tag named `v<__version__>` (eg. v1.0.1).
-2. Publishing a new GitHub Release with this tag.
-3. The release notes will be based on the commit message of this change.
-4. An executable will be built and attached to the release.
+Updating this file will trigger a release using the version number.
+The process is as follows:
+1. Commit `version.py`.
+2. Create git tag named `v{VERSION}` (eg. v2.0.0).
+3. Create release, using the commit message as release notes.
+4. Build executable and attach to release.
 
 Some processing will be done on the commit message so the format can be
 kept simple. The recommend commit message format is as follows:
@@ -15,7 +14,7 @@ kept simple. The recommend commit message format is as follows:
     # Enhancements
     - New option
     # Fixes
-    - Fixed potential crash when thing happens (<commit_sha>)
+    - Fixed potential crash when thing happens ({commit_sha})
 """
 
-VERSION = '2.1.10'
+VERSION = '2.2.0'

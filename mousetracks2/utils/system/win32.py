@@ -136,8 +136,11 @@ class PID:
     def __init__(self, pid: int) -> None:
         self.pid = pid
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{type(self).__name__}({self.pid})'
+
+    def __bool__(self) -> bool:
+        return bool(self.pid)
 
     def __int__(self) -> int:
         return self.pid

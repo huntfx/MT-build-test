@@ -1,24 +1,26 @@
 import math
 import os
+import time
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import Iterator
+from typing import Iterator, Literal
 
 import numpy as np
 
 from . import ipc
 from .abstract import Component
 from ..config.cli import CLI
+from ..config.settings import GlobalConfig
 from ..exceptions import ExitRequest
 from ..export import Export
-from ..file import ArrayResolutionMap, MovementMaps, TrackingProfile, TrackingProfileLoader, get_filename
+from ..file import ArrayResolutionMap, MovementMaps, TrackingProfile, TrackingProfileLoader, get_filename, santise_profile_name
 from ..legacy import keyboard
 from ..utils import keycodes, get_cursor_pos
 from ..utils.math import calculate_line, calculate_distance, calculate_pixel_offset
 from ..utils.network import Interfaces
 from ..utils.system import monitor_locations
-from ..constants import DEFAULT_PROFILE_NAME, UPDATES_PER_SECOND, DOUBLE_CLICK_MS, DOUBLE_CLICK_TOL, RADIAL_ARRAY_SIZE, INACTIVITY_MS
+from ..constants import DEFAULT_PROFILE_NAME, UPDATES_PER_SECOND, DOUBLE_CLICK_MS, DOUBLE_CLICK_TOL, RADIAL_ARRAY_SIZE, DEBUG
 from ..render import render, EmptyRenderError
 
 
@@ -56,7 +58,7 @@ class Processing(Component):
         self.previous_monitor = None
 
         # Load in the default profile
-        self.all_profiles: dict[str, TrackingProfile] = TrackingProfileLoader()
+        self.all_profiles = TrackingProfileLoader()
         self._current_application = Application('', [])
         self.current_application = Application(DEFAULT_PROFILE_NAME, [])
 
@@ -89,12 +91,13 @@ class Processing(Component):
             return
         self._current_application = application
 
-        # Reset the cursor position
+        # Reset the data
         self.profile.cursor_map.position = None
 
     def _send_profile_data(self, name: str) -> None:
         """Send all the stats for the profile."""
         profile = self.all_profiles[name]
+        profile._last_accessed = time.time()
 
         # Count total clicks
         clicks = 0
@@ -125,7 +128,7 @@ class Processing(Component):
         # Get all resolutions and how much data they contain
         resolutions: dict[tuple[int, int], tuple[int, bool]] = {}
         for resolution, array in profile.cursor_map.density_arrays.items():
-            resolutions[resolution] = (np.sum(array), resolution not in profile.config.disabled_resolutions)
+            resolutions[resolution] = (int(np.sum(array)), resolution not in profile.config.disabled_resolutions)
 
         # Send data back to the GUI
         self.send_data(ipc.ProfileData(
@@ -137,7 +140,7 @@ class Processing(Component):
             clicks=clicks,
             scrolls=scrolls,
             keys_pressed=keys,
-            buttons_pressed=sum(np.sum(array) for array in profile.button_presses.values()),
+            buttons_pressed=sum(int(np.sum(array)) for array in profile.button_presses.values()),
             elapsed_ticks=profile.elapsed,
             active_ticks=profile.active,
             inactive_ticks=profile.inactive,
@@ -329,7 +332,8 @@ class Processing(Component):
                       width: int | None, height: int | None, colour_map: str, sampling: int = 1,
                       padding: int = 0, contrast: float = 1.0, lock_aspect: bool = True,
                       clipping: float = 0.0, blur: float = 0.0, linear: bool = False,
-                      left_clicks: bool = True, middle_clicks: bool = True, right_clicks: bool = True) -> np.ndarray:
+                      left_clicks: bool = True, middle_clicks: bool = True, right_clicks: bool = True,
+                      interpolation_order: Literal[0, 1, 2, 3, 4, 5] = 0) -> np.ndarray:
         """Render an array (tracks / heatmaps)."""
         # Get the arrays to render
         positional_arrays = self._arrays_for_rendering(profile, render_type, left_clicks=left_clicks,
@@ -349,14 +353,16 @@ class Processing(Component):
         try:
             image = render(colour_map, positional_arrays, width, height, sampling,
                            lock_aspect=lock_aspect, linear=linear,
-                           blur=blur, contrast=contrast, clipping=clipping)
+                           blur=blur, contrast=contrast, clipping=clipping,
+                           interpolation_order=interpolation_order)
         except EmptyRenderError:
             image = np.ndarray([0, 0, 3])
 
         return image
 
-    def _render_keyboard(self, profile: TrackingProfile, colour_map: str, sampling: int = 1) -> np.ndarray:
+    def _render_keyboard(self, profile: TrackingProfile, colour_map: str, data_set: str, sampling: int = 1) -> np.ndarray:
         """Render a keyboard image."""
+        keyboard.GLOBALS.data_set = data_set
         keyboard.GLOBALS.colour_map = colour_map
         keyboard.GLOBALS.multiplier = max(1, sampling)
 
@@ -368,18 +374,37 @@ class Processing(Component):
         # Convert back to array to send to GUI
         return np.asarray(image)
 
+    def _get_tick_diff(self, profile_name: str) -> int:
+        """Get the difference between elapsed ticks and recorded ticks.
+
+        This should always return a positive integer, but a check is
+        required as it's quite finicky and easy to break with updates.
+        """
+        profile = self.all_profiles[profile_name]
+        tick_diff = profile.elapsed - (profile.active + profile.inactive)
+        if tick_diff < 0:
+            raise RuntimeError(f'unexpected tick difference, should be a positive number, got {tick_diff} '
+                               f'(elapsed: {profile.elapsed}, active: {profile.active}, inactive: {profile.inactive})')
+        return tick_diff
+
     def _record_active_tick(self, profile_name: str, ticks: int) -> None:
         profile = self.all_profiles[profile_name]
         profile.active += ticks
         profile.daily_ticks[self.profile_age_days, 1] += ticks
+
+        if DEBUG:
+            self._get_tick_diff(profile_name)
 
     def _record_inactive_tick(self, profile_name: str, ticks: int) -> None:
         profile = self.all_profiles[profile_name]
         profile.inactive += ticks
         profile.daily_ticks[self.profile_age_days, 2] += ticks
 
-    def _export_stats(self, message: ipc.ExportStats):
-        """Export a stats TSV file."""
+        if DEBUG:
+            self._get_tick_diff(profile_name)
+
+    def _export_stats(self, message: ipc.ExportStats) -> None:
+        """Export a stats CSV file."""
         export = Export(self.all_profiles[message.profile])
 
         match message:
@@ -403,7 +428,6 @@ class Processing(Component):
 
         self.send_data(ipc.ExportStatsSuccessful(message))
 
-
     def _save(self, profile_name: str) -> bool:
         """Save a profile to disk.
         See `ipc.SaveReady` for information on why the `inactivity`
@@ -418,13 +442,8 @@ class Processing(Component):
         # To keep the active/inactive time in sync with elapsed,
         # temporarily add the current data to the profile
         # This is the same logic in the GUI
-        inactivity_threshold = UPDATES_PER_SECOND * INACTIVITY_MS / 1000
-        tick_diff = profile.elapsed - (profile.active + profile.inactive)
-        # There's a bug where tick_diff is ending up as -1 and causing an error
-        # The cause is not known, so just check for it
-        if tick_diff < 0:
-            raise RuntimeError(f'unepxected tick difference, should be a positive number, got {tick_diff} '
-                               f'(elapsed: {profile.elapsed}, active: {profile.active}, inactive: {profile.inactive})')
+        inactivity_threshold = UPDATES_PER_SECOND * GlobalConfig.inactivity_time
+        tick_diff = self._get_tick_diff(profile_name)
         if tick_diff > inactivity_threshold:
             self._record_inactive_tick(profile_name, tick_diff)
         elif tick_diff:
@@ -478,7 +497,13 @@ class Processing(Component):
                     sampling = message.sampling
                     if message.file_path is not None:
                         sampling *= 2
-                    image = self._render_keyboard(profile, message.colour_map, sampling)
+
+                    assert message.show_count != message.show_time
+                    if message.show_count:
+                        data_set = 'count'
+                    if message.show_time:
+                        data_set = 'time'
+                    image = self._render_keyboard(profile, message.colour_map, data_set, sampling)
 
                 else:
                     image = self._render_array(profile, message.type, message.width, message.height,
@@ -488,7 +513,8 @@ class Processing(Component):
                                                blur=message.blur, linear=message.linear,
                                                left_clicks=message.show_left_clicks,
                                                middle_clicks=message.show_middle_clicks,
-                                               right_clicks=message.show_right_clicks)
+                                               right_clicks=message.show_right_clicks,
+                                               interpolation_order=message.interpolation_order)
                 self.send_data(ipc.Render(image, message))
 
                 print('[Processing] Render request completed')
@@ -618,7 +644,7 @@ class Processing(Component):
                     if message.profile_name in self.all_profiles:
                         profile_names.append(message.profile_name)
                 else:
-                    profile_names.extend(self.all_profiles)
+                    profile_names.extend(profile.name for profile in self.all_profiles.values())
 
                 for profile_name in profile_names:
                     profile = self.all_profiles[profile_name]
@@ -727,9 +753,14 @@ class Processing(Component):
                 with suppress(FileNotFoundError):
                     os.remove(get_filename(message.profile_name))
 
-            case ipc.LoadLegacyProfile():
-                self.all_profiles[message.name] = TrackingProfile(message.name)
-                self.all_profiles[message.name].import_legacy(message.path)
+            case ipc.ImportProfile():
+                profile = self.all_profiles[message.name] = TrackingProfile.load(message.path)
+                profile.is_modified = True
+
+            case ipc.ImportLegacyProfile():
+                profile = self.all_profiles[message.name] = TrackingProfile(message.name)
+                profile.import_legacy(message.path)
+                profile.is_modified = True
 
             case ipc.ExportStats():
                 self._export_stats(message)
@@ -751,7 +782,7 @@ class Processing(Component):
             case _:
                 raise NotImplementedError(message)
 
-    def run(self):
+    def run(self) -> None:
         """Listen for events to process."""
         for message in self.receive_data(polling_rate=1 / UPDATES_PER_SECOND):
             self._process_message(message)
