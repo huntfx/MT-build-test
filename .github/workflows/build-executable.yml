@@ -172,7 +172,7 @@ jobs:
           echo "dist\%DEST_BASE_NAME%.exe"
 
           :: Verify it was created
-          if exist "dist\%DEST_BASE_NAME%.exe" (
+          if exist "%DEST_BASE_NAME%.exe" (
               echo Installer created successfully.
               echo INSTALLER_FILENAME=%EXE_BASENAME%-setup.exe >> %GITHUB_ENV%
           ) else (
