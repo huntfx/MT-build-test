@@ -82,7 +82,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Source: "dist\MouseTracks.exe"; DestDir: "{app}"; DestName: "{#MyAppName}.exe"; Flags: ignoreversion
 
 ; --- File 2: The Versioned Executable ---
-Source: "{#MySourceBaseName}.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\{#MySourceBaseName}.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
