@@ -194,4 +194,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MouseTracks-${{ env.VERSION }}-${{ matrix.platform }}-${{ matrix.architecture }}
-          path: path: dist/${{ env.EXE_BASENAME }}*
+          path: dist/${{ env.EXE_BASENAME }}*
