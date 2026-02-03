@@ -154,5 +154,6 @@ if sys.platform == 'win32':
         target_arch=None,
         codesign_identity=None,
         entitlements_file=None,
+        version='build\\version-installer.rc',
         icon='resources/images/icon.ico'
     )
