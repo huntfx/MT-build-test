@@ -45,7 +45,7 @@ if defined ISCC_PATH (
     if errorlevel 1 (
         echo Warning: Installer creation failed.
     ) else (
-        echo Installer created successfully.
+        echo Installer created successfully: %DEST_BASE_NAME%.exe
     )
 ) else (
     echo -------------------------------------------------------------------
