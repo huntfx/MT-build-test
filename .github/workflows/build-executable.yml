@@ -189,26 +189,27 @@ jobs:
           pyinstaller MouseTracks.spec
           deactivate
 
-      - name: Build Installer (Windows Only)
+      - name: Build Installer for Windows
         if: runner.os == 'Windows'
         shell: cmd
         run: |
           :: Add Inno Setup to PATH (GitHub runners have it installed by default)
           set "PATH=%PATH%;C:\Program Files (x86)\Inno Setup 6"
 
-          :: Define the installer name based on the executable basename
-          set "INSTALLER_BASENAME=%EXE_BASENAME%-setup"
+          set "SOURCE_BASE_NAME=dist\%EXE_BASENAME%"
+          set "DEST_BASE_NAME=dist\%EXE_BASENAME%-setup"
 
-          echo --- Building Installer: %INSTALLER_BASENAME%.exe ---
+          echo --- Building Installer ---
+          echo Source Base: %SOURCE_BASE_NAME%
+          echo Dest Base: %DEST_BASE_NAME%
 
-          :: Run ISCC with all dynamic variables
-          ISCC.exe /DMyAppVersion="${{ env.VERSION }}" /DMySourceExeName="${{ env.FULL_EXE_NAME }}" /DMyInstallerName="%INSTALLER_BASENAME%" "MouseTracks.iss"
+          :: Run ISCC
+          ISCC.exe /DMyAppVersion="${{ env.VERSION }}" /DMySourceBaseName="%SOURCE_BASE_NAME%" /DMyDestinationBaseName="%DEST_BASE_NAME%" "MouseTracks.iss"
 
           :: Verify it was created
           if exist "dist\%INSTALLER_BASENAME%.exe" (
               echo Installer created successfully.
-              :: Set a GitHub env var so the next step knows the filename
-              echo "INSTALLER_FILENAME=%INSTALLER_BASENAME%.exe" >> $GITHUB_ENV
+              echo INSTALLER_FILENAME=%EXE_BASENAME%-setup.exe >> %GITHUB_ENV%
           ) else (
               echo ::error::Installer creation failed!
               exit /b 1
