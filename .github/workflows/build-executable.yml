@@ -174,7 +174,7 @@ jobs:
           :: Verify it was created
           if exist "%DEST_BASE_NAME%.exe" (
               echo Installer created successfully.
-              echo INSTALLER_FILENAME=%EXE_BASENAME%-setup.exe >> %GITHUB_ENV%
+              echo INSTALLER_FILENAME=%DEST_BASE_NAME%.exe >> %GITHUB_ENV%
           ) else (
               echo ::error::Installer creation failed!
               exit /b 1
