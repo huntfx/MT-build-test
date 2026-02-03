@@ -197,7 +197,7 @@ jobs:
           set "PATH=%PATH%;C:\Program Files (x86)\Inno Setup 6"
 
           :: Define the installer name based on the executable basename
-          set "INSTALLER_BASENAME=%EXE_BASENAME%setup"
+          set "INSTALLER_BASENAME=%EXE_BASENAME%-setup"
 
           echo --- Building Installer: %INSTALLER_BASENAME%.exe ---
 
