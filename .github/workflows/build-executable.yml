@@ -163,6 +163,8 @@ jobs:
 
           :: Run ISCC
           ISCC.exe /DMyAppVersion="${{ env.VERSION }}" /DMySourceBaseName="%SOURCE_BASE_NAME%" /DMyDestinationBaseName="%DEST_BASE_NAME%" "MouseTracks.iss"
+          echo "debug"
+          echo ""dist\%DEST_BASE_NAME%.exe""
 
           :: Verify it was created
           if exist "dist\%DEST_BASE_NAME%.exe" (
