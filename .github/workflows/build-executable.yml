@@ -23,11 +23,6 @@ jobs:
             architecture: x64
             upx_suffix: win64
             exe_suffix: .exe
-          - platform: linux
-            os: ubuntu-latest
-            architecture: x64
-            upx_suffix: amd64_linux
-            exe_suffix: ''
 
     steps:
       - name: Checkout partial repository
@@ -65,28 +60,6 @@ jobs:
             source .venv/bin/activate
           fi
           python -m pip install --upgrade pip wheel
-          deactivate
-
-      - name: Build PyInstaller Bootloader
-        shell: bash
-        run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            source .venv/Scripts/activate
-          else
-            source .venv/bin/activate
-          fi
-
-          echo "--- Cloning PyInstaller ${{ env.PYINSTALLER_VERSION }} ---"
-          git clone --branch ${{ env.PYINSTALLER_VERSION }} --depth 1 https://github.com/pyinstaller/pyinstaller.git build/pyinstaller
-
-          echo "--- Building Bootloader ---"
-          cd build/pyinstaller/bootloader
-          python ./waf distclean all
-          cd ../.. # Back to build directory
-          cd .. # Back to root
-
-          echo "--- Installing Custom PyInstaller from build directory ---"
-          pip install ./build/pyinstaller
           deactivate
 
       - name: Install dependencies
