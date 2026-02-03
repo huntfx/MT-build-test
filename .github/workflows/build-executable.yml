@@ -136,21 +136,6 @@ jobs:
           pyivf-make_version --outfile "build/version.rc" --version "${{ env.VERSION }}" --file-description "${{ env.EXE_BASENAME }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_EXE_NAME }}" --product-name "${{ env.EXE_BASENAME }}"
           deactivate
 
-      - name: Install UPX
-        shell: bash
-        run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            UPX_URL="https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-${{ matrix.upx_suffix }}.zip"
-            curl -L -o upx.zip "$UPX_URL"
-            unzip -o upx.zip -d upx_extracted
-            echo "PATH=$(pwd)/upx_extracted/upx-5.0.1-${{ matrix.upx_suffix }};$PATH" >> $GITHUB_ENV
-          else # Linux
-            UPX_URL="https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-${{ matrix.upx_suffix }}.tar.xz"
-            curl -L -o upx.tar.xz "$UPX_URL"
-            tar -xf upx.tar.xz
-            echo "PATH=$(pwd)/upx-5.0.1-${{ matrix.upx_suffix }}:$PATH" >> $GITHUB_ENV
-          fi
-
       - name: Build executable
         shell: bash
         run: |
