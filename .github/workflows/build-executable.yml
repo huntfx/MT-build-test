@@ -118,7 +118,7 @@ jobs:
           EXE_BASENAME="MouseTracks-${VERSION}-${{ matrix.platform }}-${{ matrix.architecture }}"
           FULL_EXE_NAME="${EXE_BASENAME}${{ matrix.exe_suffix }}"
           INSTALLER_BASENAME="${EXE_BASENAME}-setup"
-          FULL_INSTALLER_NAME = "${INSTALLER_BASENAME}${{ matrix.exe_suffix }}"
+          FULL_INSTALLER_NAME="${INSTALLER_BASENAME}${{ matrix.exe_suffix }}"
 
           # Set environment variables for use in later steps of this job
           echo "EXE_BASENAME=${EXE_BASENAME}" >> $GITHUB_ENV
