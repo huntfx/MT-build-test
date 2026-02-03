@@ -23,6 +23,11 @@ jobs:
             architecture: x64
             upx_suffix: win64
             exe_suffix: .exe
+          - platform: linux
+            os: ubuntu-latest
+            architecture: x64
+            upx_suffix: amd64_linux
+            exe_suffix: ''
 
     steps:
       - name: Checkout partial repository
@@ -60,6 +65,28 @@ jobs:
             source .venv/bin/activate
           fi
           python -m pip install --upgrade pip wheel
+          deactivate
+
+      - name: Build PyInstaller Bootloader
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+
+          echo "--- Cloning PyInstaller ${{ env.PYINSTALLER_VERSION }} ---"
+          git clone --branch ${{ env.PYINSTALLER_VERSION }} --depth 1 https://github.com/pyinstaller/pyinstaller.git build/pyinstaller
+
+          echo "--- Building Bootloader ---"
+          cd build/pyinstaller/bootloader
+          python ./waf distclean all
+          cd ../.. # Back to build directory
+          cd .. # Back to root
+
+          echo "--- Installing Custom PyInstaller from build directory ---"
+          pip install ./build/pyinstaller
           deactivate
 
       - name: Install dependencies
@@ -134,13 +161,28 @@ jobs:
           echo "Installer basename: ${INSTALLER_BASENAME}"
           echo "Full installer name: ${FULL_INSTALLER_NAME}"
 
-      - name: Create version.rc (Windows only)
+      - name: Install UPX
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            UPX_URL="https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-${{ matrix.upx_suffix }}.zip"
+            curl -L -o upx.zip "$UPX_URL"
+            unzip -o upx.zip -d upx_extracted
+            echo "PATH=$(pwd)/upx_extracted/upx-5.0.1-${{ matrix.upx_suffix }};$PATH" >> $GITHUB_ENV
+          else # Linux
+            UPX_URL="https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-${{ matrix.upx_suffix }}.tar.xz"
+            curl -L -o upx.tar.xz "$UPX_URL"
+            tar -xf upx.tar.xz
+            echo "PATH=$(pwd)/upx-5.0.1-${{ matrix.upx_suffix }}:$PATH" >> $GITHUB_ENV
+          fi
+
+      - name: Create version.rc
         if: runner.os == 'Windows'
         shell: bash
         run: |
           source .venv/Scripts/activate
-          pyivf-make_version --outfile "build/version.rc" --version "${{ env.VERSION }}" --file-description "${{ env.EXE_BASENAME }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_EXE_NAME }}" --product-name "${{ env.EXE_BASENAME }}"
-          pyivf-make_version --outfile "build/version-installer.rc" --version "${{ env.VERSION }}" --file-description "${{ env.INSTALLER_BASENAME }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_INSTALLER_NAME }}" --product-name "${{ env.INSTALLER_BASENAME }}"
+          pyivf-make_version --outfile "build/version.rc" --version "${{ env.VERSION }}" --file-description "MouseTracks ${{ env.VERSION }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_EXE_NAME }}" --product-name "MouseTracks ${{ env.VERSION }}"
+          pyivf-make_version --outfile "build/version-installer.rc" --version "${{ env.VERSION }}" --file-description "MouseTracks ${{ env.VERSION }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_INSTALLER_NAME }}" --product-name "MouseTracks ${{ env.VERSION }}"
           deactivate
 
       - name: Build executable
@@ -153,7 +195,7 @@ jobs:
           fi
           pyinstaller MouseTracks.spec
           deactivate
-          
+
       - name: Build Installer for Windows
         if: runner.os == 'Windows'
         shell: cmd
@@ -162,7 +204,7 @@ jobs:
           set "PATH=%PATH%;C:\Program Files (x86)\Inno Setup 6"
 
           set "SOURCE_BASE_NAME=dist\%EXE_BASENAME%"
-          set "DEST_BASE_NAME=dist\%EXE_BASENAME%-setup"
+          set "DEST_BASE_NAME=dist\%INSTALLER_BASENAME%"
 
           echo --- Building Installer ---
           echo Source Base: %SOURCE_BASE_NAME%
@@ -170,13 +212,6 @@ jobs:
 
           :: Run ISCC
           ISCC.exe /DMyAppVersion="${{ env.VERSION }}" /DMySourceBaseName="%SOURCE_BASE_NAME%" /DMyDestinationBaseName="%DEST_BASE_NAME%" "MouseTracks.iss"
-          echo "debug"
-          :: DEBUG: List the dist directory to see exactly what was created
-          echo.
-          echo --- Directory Content of dist ---
-          dir dist
-          echo --------------------------------
-          echo "dist\%DEST_BASE_NAME%.exe"
 
           :: Verify it was created
           if exist "%DEST_BASE_NAME%.exe" (
@@ -203,16 +238,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
 
-      - name: Upload executable as artifact
+      - name: Upload Executable as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MouseTracks-${{ env.VERSION }}-${{ matrix.platform }}-${{ matrix.architecture }}
           path: dist/${{ env.FULL_EXE_NAME }}
 
-      - name: Upload installer as artifact
+      - name: Upload Installer as Artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: MouseTracks-${{ env.VERSION }}-${{ matrix.platform }}-${{ matrix.architecture }}-setup
           path: dist/${{ env.FULL_INSTALLER_NAME }}
-
