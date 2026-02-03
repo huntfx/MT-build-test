@@ -7,7 +7,6 @@ import sys
 import certifi
 from scipy import __file__ as scipy_path
 
-import sys
 sys.path.insert(0, os.path.abspath('.'))
 from mousetracks2 import __version__ as version
 from mousetracks2.utils.update import generate_exe_name

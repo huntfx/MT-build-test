@@ -138,7 +138,7 @@ _Using a custom bootloader is entirely optional, but it may help reduce AV false
   build-pyinstaller-bootloader.bat
   build-pyinstaller.bat
   ```
-  Optionally package the built executable into an installer using `build.installer.bat`.
+  To package the built executables into an installer, use `build-installer.bat`.
 
 - Linux:
   ```bash

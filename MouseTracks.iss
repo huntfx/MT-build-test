@@ -37,6 +37,12 @@ AppUpdatesURL={#MyAppURL}/releases
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\icon.ico
 
+VersionInfoVersion={#MyAppVersion}
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoDescription={#MyAppName} {#MyAppVersion} Setup
+VersionInfoProductName={#MyAppName}
+VersionInfoCopyright=Peter Hunt
+
 DefaultDirName={localappdata}\{#MyAppName}
 ; Support appdata installs only
 PrivilegesRequired=lowest
@@ -70,11 +76,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "autostart"; Description: "Launch {#MyAppName} automatically when Windows starts"; GroupDescription: "Startup options:"
-Name: "startminimized"; Description: "Start minimised to the system tray"; GroupDescription: "Startup options:"
+Name: "startminimised"; Description: "Minimise to the system tray on startup"; GroupDescription: "Startup options:"
 
 [Registry]
 ; Write to the standard Windows "Run" key for the current user
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppName}.exe"" --autostart{code:GetStartupArgs}"; Flags: uninsdeletevalue; Tasks: autostart
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppName}.exe"" --installed --autostart{code:GetStartupArgs}"; Flags: uninsdeletevalue; Tasks: autostart
 
 [Files]
 Source: "dist\{#MyAppName}.exe"; DestDir: "{app}"; DestName: "{#MyAppName}.exe"; Flags: ignoreversion
@@ -101,16 +107,41 @@ Filename: "{app}\{#MyAppName}.exe"; Description: "{cm:LaunchProgram,{#StringChan
 // Function to dynamically determine startup arguments based on selected tasks
 function GetStartupArgs(Param: String): String;
 begin
-  Result := '';
-  // Check if the "Start minimized" task is checked
-  if WizardIsTaskSelected('startminimized') then
+  // Check if the "Start minimised" task is checked
+  if WizardIsTaskSelected('startminimised') then
   begin
-    // Append the flag with a leading space
     Result := ' --start-hidden';
+  end
+  else
+  begin
+    Result := ' --start-visible';
   end;
 end;
 
-[UninstallDelete]
-; Delete all versioned executable and temp files on uninstall
-Type: files; Name: "{app}\MouseTracks-*.exe"
-Type: files; Name: "{app}\*.tmp"
+// Function to check if the application is currently running
+function InitializeSetup(): Boolean;
+var
+  WbemLocator, WbemServices, WbemObjectSet: Variant;
+  TargetFile: String;
+begin
+  Result := True;
+
+  TargetFile := ExpandConstant('{localappdata}\{#MyAppName}\{#MyAppName}.exe');
+  StringChange(TargetFile, '\', '\\');
+
+  try
+    WbemLocator := CreateOleObject('WbemScripting.SWbemLocator');
+    WbemServices := WbemLocator.ConnectServer('.', 'root\CIMV2');
+
+    WbemObjectSet := WbemServices.ExecQuery('SELECT Name FROM Win32_Process WHERE ExecutablePath = ''' + TargetFile + '''');
+
+    if not VarIsNull(WbemObjectSet) and (WbemObjectSet.Count > 0) then
+    begin
+      MsgBox('MouseTracks is currently running. Please close it before installing.', mbError, MB_OK);
+      Result := False;
+    end;
+
+  except
+    // If WMI fails, proceed anyway
+  end;
+end;
