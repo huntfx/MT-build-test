@@ -117,6 +117,8 @@ jobs:
 
           EXE_BASENAME="MouseTracks-${VERSION}-${{ matrix.platform }}-${{ matrix.architecture }}"
           FULL_EXE_NAME="${EXE_BASENAME}${{ matrix.exe_suffix }}"
+          INSTALLER_BASENAME="${EXE_BASENAME}-setup"
+          FULL_INSTALLER_NAME = "${INSTALLER_BASENAME}${{ matrix.exe_suffix }}"
 
           # Set environment variables for use in later steps of this job
           echo "EXE_BASENAME=${EXE_BASENAME}" >> $GITHUB_ENV
@@ -145,6 +147,14 @@ jobs:
             source .venv/bin/activate
           fi
           pyinstaller MouseTracks.spec
+          deactivate
+          
+      - name: Create version.rc
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          source .venv/Scripts/activate
+          pyivf-make_version --outfile "build/version.rc" --version "${{ env.VERSION }}" --file-description "${{ env.INSTALLER_BASENAME }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_INSTALLER_NAME }}" --product-name "${{ env.INSTALLER_BASENAME }}"
           deactivate
 
       - name: Build Installer for Windows
@@ -186,7 +196,7 @@ jobs:
         with:
           files: |
             dist/${{ env.FULL_EXE_NAME }}
-            ${{ env.INSTALLER_FILENAME }}
+            dist/${{ env.FULL_INSTALLER_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
 
@@ -201,4 +211,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MouseTracks-${{ env.VERSION }}-${{ matrix.platform }}-${{ matrix.architecture }}-setup
-          path: ${{ env.INSTALLER_FILENAME }}
+          path: dist/${{ env.FULL_INSTALLER_NAME }}
+
