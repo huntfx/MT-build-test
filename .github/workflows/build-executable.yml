@@ -186,7 +186,7 @@ jobs:
         with:
           files: |
             dist/${{ env.FULL_EXE_NAME }}
-            dist/${{ env.INSTALLER_FILENAME }}
+            ${{ env.INSTALLER_FILENAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
 
@@ -194,4 +194,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MouseTracks-${{ env.VERSION }}-${{ matrix.platform }}-${{ matrix.architecture }}
-          path: dist/${{ env.EXE_BASENAME }}*
+          path: dist/${{ env.FULL_EXE_NAME }}
+
+      - name: Upload installer as artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: MouseTracks-${{ env.VERSION }}-${{ matrix.platform }}-${{ matrix.architecture }}-setup
+          path: ${{ env.INSTALLER_FILENAME }}
