@@ -165,7 +165,7 @@ jobs:
           ISCC.exe /DMyAppVersion="${{ env.VERSION }}" /DMySourceBaseName="%SOURCE_BASE_NAME%" /DMyDestinationBaseName="%DEST_BASE_NAME%" "MouseTracks.iss"
 
           :: Verify it was created
-          if exist "dist\%INSTALLER_BASENAME%.exe" (
+          if exist "dist\%DEST_BASE_NAME%.exe" (
               echo Installer created successfully.
               echo INSTALLER_FILENAME=%EXE_BASENAME%-setup.exe >> %GITHUB_ENV%
           ) else (
