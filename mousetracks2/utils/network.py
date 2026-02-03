@@ -26,9 +26,9 @@ def safe_download_file(url: str, path: str | Path, timeout: int = 10) -> bool:
     # Find the next available free filename
     for i in count():
         if i:
-            temp = path.with_suffix(f'.temp{i}')
+            temp = path.with_suffix(f'.tmp{i}')
         else:
-            temp = path.with_suffix('.temp')
+            temp = path.with_suffix('.tmp')
 
         if temp.exists():
             try:

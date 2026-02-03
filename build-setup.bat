@@ -19,9 +19,6 @@ if not defined VERSION (
     exit /b 1
 )
 
-set "SOURCE_BASE_NAME=dist\MouseTracks-%VERSION%-windows-x64"
-set "DEST_BASE_NAME=dist\MouseTracks-%VERSION%-windows-x64-setup"
-
 :: Inno Setup Installer Build
 :: 1. Check if ISCC is already on the PATH
 where ISCC >nul 2>nul
@@ -38,21 +35,36 @@ if not defined ISCC_PATH (
         if exist "%%D\ISCC.exe" set "ISCC_PATH=%%D\ISCC.exe"
     )
 )
+
+:: Set environment variables (this matches build-executable.yml)
+set "EXE_BASENAME=MouseTracks-%VERSION%-windows-x64"
+set "FULL_EXE_NAME=%EXE_BASENAME%.exe"
+set "INSTALLER_BASENAME=%EXE_BASENAME%-setup"
+set "FULL_INSTALLER_NAME=%INSTALLER_BASENAME%.exe"
+
+set "SOURCE_BASE_NAME=dist\%EXE_BASENAME%"
+set "DEST_BASE_NAME=dist\%INSTALLER_BASENAME%"
+
+:: Check if the source file actually exists in dist
+if not exist "dist\%SOURCE_EXE_NAME%" (
+    echo Error: Source file not found: dist\%SOURCE_EXE_NAME%
+    echo Did you run build-nuitka.bat / build-pyinstaller.bat first?
+    exit /b 1
+)
+
 :: 4. Run or Warn
 if defined ISCC_PATH (
     echo --- Building Installer using "%ISCC_PATH%" ---
-    "%ISCC_PATH%" /DMyAppVersion="%VERSION%" /DMySourceBaseName="%SOURCE_BASE_NAME%" /DMyDestinationBaseName="%DEST_BASE_NAME%" "MouseTracks.iss"
+    echo Source: %SOURCE_EXE_NAME%
+    "%ISCC_PATH%" /DMyAppVersion="%VERSION%" /DMySourceExeName="%SOURCE_BASE_NAME%" /DMyInstallerName="%DEST_BASE_NAME%" "MouseTracks.iss"
     if errorlevel 1 (
         echo Warning: Installer creation failed.
     ) else (
-        echo Installer created successfully: %DEST_BASE_NAME%.exe
+        echo Installer created successfully: dist\%DEST_BASE_NAME%.exe
     )
 ) else (
     echo -------------------------------------------------------------------
     echo WARNING: Inno Setup Compiler ^(ISCC.exe^) was not found.
-    echo.
-    echo The main executable was built successfully in the "dist" folder.
-    echo However, the installer could not be generated.
     echo.
     echo Please ensure Inno Setup is installed or added to your system PATH.
     echo https://jrsoftware.org/isdl.php
