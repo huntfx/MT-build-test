@@ -136,6 +136,7 @@ jobs:
         run: |
           source .venv/Scripts/activate
           pyivf-make_version --outfile "build/version.rc" --version "${{ env.VERSION }}" --file-description "${{ env.EXE_BASENAME }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_EXE_NAME }}" --product-name "${{ env.EXE_BASENAME }}"
+          pyivf-make_version --outfile "build/version-installer.rc" --version "${{ env.VERSION }}" --file-description "${{ env.INSTALLER_BASENAME }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_INSTALLER_NAME }}" --product-name "${{ env.INSTALLER_BASENAME }}"
           deactivate
 
       - name: Build executable
@@ -149,14 +150,6 @@ jobs:
           pyinstaller MouseTracks.spec
           deactivate
           
-      - name: Create version.rc
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          source .venv/Scripts/activate
-          pyivf-make_version --outfile "build/version.rc" --version "${{ env.VERSION }}" --file-description "${{ env.INSTALLER_BASENAME }}" --internal-name "MouseTracks" --legal-copyright "Peter Hunt" --original-filename "${{ env.FULL_INSTALLER_NAME }}" --product-name "${{ env.INSTALLER_BASENAME }}"
-          deactivate
-
       - name: Build Installer for Windows
         if: runner.os == 'Windows'
         shell: cmd
