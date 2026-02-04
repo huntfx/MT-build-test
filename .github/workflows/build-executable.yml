@@ -90,6 +90,7 @@ jobs:
           deactivate
 
       - name: Build PyInstaller Bootloader
+        if: matrix.platform == 'skip'
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
