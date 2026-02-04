@@ -128,6 +128,7 @@ jobs:
           # Iterate over requirements to try and download compatible binaries for each
           grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
               req_line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+              if [[ -z "$req_line" ]]; then continue; fi
 
               echo "Checking compatibility for: $req_line"
               python -m pip download \
@@ -138,7 +139,7 @@ jobs:
                 "$req_line" 2>/dev/null; then
                   echo "  > Downloaded binary for '$req_line'. Removing from final requirements."
                   grep -vF "$line" requirements.txt > requirements.tmp && mv requirements.tmp requirements.txt
-                else:
+                else
                   echo "  > Could not force 10.9 binary for '$req_line', falling back to standard install."
                 fi
 
