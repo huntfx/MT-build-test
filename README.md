@@ -83,7 +83,7 @@ This is the simplest way to get started. No installation is required.
 3. If on Linux, make the file executable: `chmod +x MouseTracks-2.0.0-linux-x64`
 4. Run the executable to launch the application.
 
-However, it's not possible to build for every Linux/macOS version, so if not compatible.
+Note that the releases may not be compatible with _every_ Linux / macOS system. If this is the case, you'll have to check the instructions below to either build or run from source.
 
 #### Linux Users
 
@@ -130,17 +130,15 @@ Python 3.11 or higher is required.
       ```cmd
       launch.bat
       ```
-    - Linux:
+    - Linux / macOS:
       ```bash
-      chmod +x launch.sh
       ./launch.sh
       ```
-
 ---
 
 ### Building from Source
 
-PyInstaller is used for the build process.
+`PyInstaller` is used for the build process. There is also support for `Nuitka` if preferred.
 
 _Using a custom bootloader is entirely optional, but it may help reduce AV false positives._
 
@@ -148,8 +146,10 @@ _Using a custom bootloader is entirely optional, but it may help reduce AV false
   ```cmd
   build-pyinstaller-bootloader.bat
   build-pyinstaller.bat
+
+  :: Optionally create a setup.py file
+  build-installer.bat
   ```
-  To package the built executables into an installer, use `build-installer.bat`.
 
 - Linux / macOS:
   ```bash
