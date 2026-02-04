@@ -76,9 +76,9 @@ def get_download_link(version: str = 'latest') -> str | None:
     return None
 
 
-def generate_exe_name(version: str = VERSION) -> str:
+def generate_exe_name(version: str = VERSION, with_extension: bool = True) -> str:
     """Generate the executable path."""
-    return f'MouseTracks-{version}-{_get_platform_suffix()}'
+    return f'MouseTracks-{version}-{_get_platform_suffix(with_extension)}'
 
 
 def _split_exe_name(path: str | Path) -> tuple[tuple[int, ...], str, str] | None:
@@ -102,7 +102,7 @@ def _split_exe_name(path: str | Path) -> tuple[tuple[int, ...], str, str] | None
     return version, os_name, arch
 
 
-def _get_platform_suffix() -> str:
+def _get_platform_suffix(with_extension: bool = True) -> str:
     """Generate the file suffix from the platform data."""
     if sys.platform == 'win32':
         os_name = 'windows'
@@ -118,6 +118,9 @@ def _get_platform_suffix() -> str:
 
     is_64bit = (struct.calcsize('P') * 8) == 64
     arch = 'x64' if is_64bit else 'x86'
+
+    if not with_extension:
+        ext = ''
 
     return f'{os_name}-{arch}{ext}'
 
