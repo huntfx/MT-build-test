@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions: write-all
     env:
-      MACOSX_DEPLOYMENT_TARGET: 11.0  # Lowest version compatible with PySide 6.7
+      MACOSX_DEPLOYMENT_TARGET: 10.9  # Lowest version compatible with PySide 6.7
 
     strategy:
       fail-fast: false
@@ -131,11 +131,10 @@ jobs:
             
             echo "Installing downloaded wheels..."
             python -m pip install manual_wheels/*.whl
-            
-          else
-            # Standard install for Windows, Linux, and macOS ARM64
-            python -m pip install -r requirements.txt
           fi
+            
+          # Standard install for Windows, Linux, and macOS ARM64
+          python -m pip install -r requirements.txt
           
           python -m pip install --upgrade -r requirements-build-pyinstaller.txt
 
