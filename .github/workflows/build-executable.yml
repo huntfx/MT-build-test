@@ -126,32 +126,34 @@ jobs:
           mkdir -p manual_wheels
 
           # Iterate over requirements to try and download compatible binaries for each
+          cp requirements.txt requirements_loop.txt
           grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
-              req_line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-              if [[ -z "$req_line" ]]; then continue; fi
+            req_line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            if [[ -z "$req_line" ]]; then continue; fi
 
-              echo "Checking compatibility for: $req_line"
-              python -m pip download \
-                --dest manual_wheels \
-                --platform macosx_10_9_x86_64 \
-                --only-binary=:all: \
-                --no-deps \
-                "$req_line" 2>/dev/null; then
-                  echo "  > Downloaded binary for '$req_line'. Removing from final requirements."
-                  grep -vF "$line" requirements.txt > requirements.tmp && mv requirements.tmp requirements.txt
-                else
-                  echo "  > Could not force 10.9 binary for '$req_line', falling back to standard install."
-                fi
+            echo "Checking compatibility for: $req_line"
+            if python -m pip download \
+              --dest manual_wheels \
+              --platform macosx_10_9_x86_64 \
+              --only-binary=:all: \
+              --no-deps \
+              "$req_line" 2>/dev/null; then
+                echo "  > Downloaded binary for '$req_line'. Removing from final requirements."
+                grep -vF "$line" requirements.txt > requirements.tmp && mv requirements.tmp requirements.txt
+            else
+              echo "  > Could not force 10.9 binary for '$req_line', falling back to standard install."
+            fi
+          done
 
-              done
+          rm requirements_loop.txt
 
           # Install any specific wheels we managed to find
           if ls manual_wheels/*.whl 1> /dev/null 2>&1; then
-              echo "Installing downloaded wheels:"
-              ls -l manual_wheels
-              python -m pip install manual_wheels/*.whl
+            echo "Installing downloaded wheels:"
+            ls -l manual_wheels
+            python -m pip install manual_wheels/*.whl
           else
-              echo "No force-compatible wheels found."
+            echo "No force-compatible wheels found."
           fi
 
           deactivate
