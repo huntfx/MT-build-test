@@ -144,7 +144,6 @@ jobs:
               --only-binary=:all: \
               --no-deps \
               "$req_line" || echo "  > Could not force 10.9 binary for '$req_line', falling back to standard install."
-            fi
           done
 
           # Install any specific wheels we managed to find
