@@ -68,7 +68,7 @@ MouseTracks is and will always remain free, but if you enjoy using it and would 
 ## Installation (v2.0)
 
 - Fully compatible with Windows.
-- Compatible with Linux and macOS.
+- Mostly compatible with Linux _(tested with Ubuntu + Arch Linux)_ and macOS _(tested with 11.6.1)_.
 
 _On Linux, MouseTracks requires an __X11 (Xorg)__ session to work. On modern distributions like Ubuntu, you may need to select "Ubuntu on Xorg" from the gear icon on the login screen._
 
@@ -82,6 +82,8 @@ This is the simplest way to get started. No installation is required.
 2. Download the appropriate file for your system (eg. `MouseTracks-2.0.0-windows-x64.exe`).
 3. If on Linux, make the file executable: `chmod +x MouseTracks-2.0.0-linux-x64`
 4. Run the executable to launch the application.
+
+However, it's not possible to build for every Linux/macOS version, so if not compatible.
 
 #### Linux Users
 
@@ -104,7 +106,6 @@ Because this app is not signed with an Apple Developer ID, you may see a warning
 2. Click Open in the dialog box.
 
 This only needs to be done once.
-
 
 #### Mirrors
 _These are not guaranteed to be the latest version._

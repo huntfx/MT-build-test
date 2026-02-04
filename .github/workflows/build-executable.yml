@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions: write-all
     env:
-      MACOSX_DEPLOYMENT_TARGET: 10.9  # Lowest version compatible with PySide 6.7
+      MACOSX_DEPLOYMENT_TARGET: 11.0  # Lowest version compatible with PySide 6.7
 
     strategy:
       fail-fast: false
@@ -40,6 +40,7 @@ jobs:
             architecture: arm64
             upx_suffix: ''
             exe_suffix: .app
+
     steps:
       - name: Checkout partial repository
         if: github.ref_type == 'tag'
@@ -52,21 +53,10 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python 3.11 ${{ matrix.architecture }}
-        if: matrix.platform != 'macos'
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
           architecture: ${{ matrix.architecture }}
-
-      - name: Install Python 3.11 ${{ matrix.architecture }} (macOS)
-        if: matrix.platform == 'macos'
-        shell: bash
-        run: |
-          PYTHON_VER="3.11.9"
-          curl -L "https://www.python.org/ftp/python/${PYTHON_VER}/python-${PYTHON_VER}-macos11.pkg" -o "python.pkg"
-          sudo installer -pkg python.pkg -target /
-          echo "/Library/Frameworks/Python.framework/Versions/3.11/bin" >> $GITHUB_PATH
-          sudo ln -sf /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 /usr/local/bin/python
 
       - name: Create virtual environment
         shell: bash
@@ -110,7 +100,7 @@ jobs:
           echo "--- Installing Custom PyInstaller from build directory ---"
           pip install ./build/pyinstaller
           deactivate
-          
+
       - name: Install dependencies
         shell: bash
         run: |
@@ -127,7 +117,7 @@ jobs:
           python -m pip install --upgrade -r requirements-build-pyinstaller.txt
 
           deactivate
-          
+
       - name: Install Legacy macOS Dependencies
         if: matrix.platform == 'macos' && matrix.architecture == 'x64'
         shell: bash

@@ -1,6 +1,7 @@
 """Code required for updates with minimal imports."""
 
 import json
+import platform
 import struct
 import sys
 import time
@@ -112,12 +113,15 @@ def _get_platform_suffix(with_extension: bool = True) -> str:
         ext = ''
     elif sys.platform == 'darwin':
         os_name = 'macos'
-        ext = '.zip'
+        ext = ''
     else:
         raise NotImplementedError(sys.platform)
 
-    is_64bit = (struct.calcsize('P') * 8) == 64
-    arch = 'x64' if is_64bit else 'x86'
+    if platform.machine().lower() in ('arm64', 'aarch64'):
+        arch = 'arm64'
+    else:
+        is_64bit = (struct.calcsize('P') * 8) == 64
+        arch = 'x64' if is_64bit else 'x86'
 
     if not with_extension:
         ext = ''
