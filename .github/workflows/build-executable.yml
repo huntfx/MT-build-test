@@ -135,7 +135,13 @@ jobs:
                 --platform macosx_10_9_x86_64 \
                 --only-binary=:all: \
                 --no-deps \
-                "$req_line" || echo "  > Could not force 10.9 binary for this requirement (or not needed for macOS)."
+                "$req_line" 2>/dev/null; then
+                  echo "  > Downloaded binary for '$req_line'. Removing from final requirements."
+                  grep -vF "$line" requirements.txt > requirements.tmp && mv requirements.tmp requirements.txt
+                else:
+                  echo "  > Could not force 10.9 binary for '$req_line', falling back to standard install."
+                fi
+
               done
 
           # Install any specific wheels we managed to find
