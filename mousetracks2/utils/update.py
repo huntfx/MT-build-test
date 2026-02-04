@@ -155,7 +155,7 @@ def cleanup_old_executables(folder: Path | str, version: str = VERSION, keep: in
 
 
 def get_local_executables(folder: Path | str, version: str = VERSION,
-                          ) -> tuple[list[Path], Path | None , list[Path]]:
+                          ) -> tuple[list[Path], Path | None, list[Path]]:
     """Get all the available executables from a path.
     Splits into lower and higher than the current version.
     """

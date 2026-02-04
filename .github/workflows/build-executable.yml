@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 32 bit python not included as PySide6 not compatible
+        # 32 bit python is not included as PySide6 is not compatible
         include:
           - platform: windows
             os: windows-latest
@@ -33,7 +33,7 @@ jobs:
           - platform: macos
             os: macos-15-intel
             architecture: x64
-            upx_suffix: '' # UPX is problematic with macOS
+            upx_suffix: ''  # UPX is problematic with macOS
             exe_suffix: '.app'
 
     steps:
@@ -169,13 +169,9 @@ jobs:
           echo "Full installer name: ${FULL_INSTALLER_NAME}"
 
       - name: Install UPX
+        if: matrix.upx_suffix != ''
         shell: bash
         run: |
-          # Skip if UPX suffix is empty
-          if [[ -z "${{ matrix.upx_suffix }}" ]]; then
-            echo "UPX suffix is empty. Skipping UPX installation."
-            exit 0
-          fi
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             UPX_URL="https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-${{ matrix.upx_suffix }}.zip"
             curl -L -o upx.zip "$UPX_URL"
