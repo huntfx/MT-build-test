@@ -25,6 +25,7 @@ except ImportError as e:
     import traceback
     traceback.print_exc()
     input('Press enter to exit...')
+    sys.exit(0)
 
 
 def _installer_update() -> None:
