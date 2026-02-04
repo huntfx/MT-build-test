@@ -127,7 +127,7 @@ jobs:
 
           # Iterate over requirements to try and download compatible binaries for each
           grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
-              req_line=$(echo "$line" | xargs)
+              req_line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
               echo "Checking compatibility for: $req_line"
               python -m pip download \
