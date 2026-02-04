@@ -1,4 +1,5 @@
 import json
+import platform
 import struct
 import sys
 import time
@@ -118,8 +119,11 @@ def _get_platform_suffix() -> str:
     else:
         raise NotImplementedError(sys.platform)
 
-    is_64bit = (struct.calcsize('P') * 8) == 64
-    arch = 'x64' if is_64bit else 'x86'
+    if platform.machine().lower() in ('arm64', 'aarch64'):
+        arch = 'arm64'
+    else:
+        is_64bit = (struct.calcsize('P') * 8) == 64
+        arch = 'x64' if is_64bit else 'x86'
 
     return f'{os_name}-{arch}{ext}'
 
