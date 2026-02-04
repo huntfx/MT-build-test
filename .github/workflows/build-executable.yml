@@ -20,16 +20,16 @@ jobs:
       matrix:
         # 32 bit python is not included as PySide6 is not compatible
         include:
-          #- platform: windows
-          #  os: windows-latest
-          #  architecture: x64
-          #  upx_suffix: win64
-          #  exe_suffix: .exe
-          #- platform: linux
-          #  os: ubuntu-latest
-          #  architecture: x64
-          #  upx_suffix: amd64_linux
-          #  exe_suffix: ''
+          - platform: windows
+            os: windows-latest
+            architecture: x64
+            upx_suffix: win64
+            exe_suffix: .exe
+          - platform: linux
+            os: ubuntu-latest
+            architecture: x64
+            upx_suffix: amd64_linux
+            exe_suffix: ''
           - platform: macos
             os: macos-15-intel
             architecture: x64
@@ -90,7 +90,6 @@ jobs:
           deactivate
 
       - name: Build PyInstaller Bootloader
-        if: matrix.platform == 'skip'
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
