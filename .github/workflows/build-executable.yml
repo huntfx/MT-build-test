@@ -111,55 +111,49 @@ jobs:
           echo "--- Installing Custom PyInstaller from build directory ---"
           pip install ./build/pyinstaller
           deactivate
+          
+      - name: Pre-Install Legacy macOS Dependencies
+        if: matrix.platform == 'macos' && matrix.architecture == 'x64'
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          echo "Attempting to manually fetch macOS 10.9+ compatible wheels for dependencies..."
+          mkdir -p manual_wheels
+          
+          # Iterate over requirements to try and download compatible binaries for each.
+          grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
+              # Remove environment markers (everything after ';') to avoid pip CLI parsing errors
+              clean_req=$(echo "$line" | cut -d';' -f1 | xargs)
+              
+              # If the line became empty (e.g. it was just a comment or marker), skip it
+              if [[ -z "$clean_req" ]]; then continue; fi
 
+              echo "Checking compatibility for: $clean_req (Original: $line)"
+              
+              # Try to download specific platform wheel.
+              # If this fails (e.g. no binary wheel, or specific platform not available), we continue.
+              python -m pip download \
+                --dest manual_wheels \
+                --platform macosx_10_9_x86_64 \
+                --only-binary=:all: \
+                --no-deps \
+                "$clean_req" || echo "  > Could not force 10.9 binary for '$clean_req', falling back to standard install later."
+          done
+          
+          # Install any specific wheels we managed to find
+          if ls manual_wheels/*.whl 1> /dev/null 2>&1; then
+              echo "Installing downloaded wheels:"
+              ls -l manual_wheels
+              python -m pip install manual_wheels/*.whl
+          else
+              echo "No force-compatible wheels found."
+          fi
+          
       - name: Install dependencies
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          
-          # Handle macOS Intel compatibility explicitly
-          if [[ "${{ matrix.platform }}" == "macos" && "${{ matrix.architecture }}" == "x64" ]]; then
-            echo "Manually fetching macOS 10.9+ compatible wheels for dependencies..."
-            mkdir -p manual_wheels
-            
-            # Download specific platform wheels for all requirements
-            # We must parse the file line-by-line to handle environment markers safely
-            grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
-                # Remove environment markers (everything after ';') to avoid pip CLI parsing errors
-                clean_req=$(echo "$line" | cut -d';' -f1 | xargs)
-                
-                # If the line became empty (e.g. it was just a comment or marker), skip it
-                if [[ -z "$clean_req" ]]; then continue; fi
-
-                echo "Checking compatibility for: $clean_req (Original: $line)"
-                
-                # Try to download specific platform wheel.
-                # If this fails (e.g. no binary wheel, or specific platform not available), we continue.
-                python -m pip download \
-                  --dest manual_wheels \
-                  --platform macosx_10_9_x86_64 \
-                  --only-binary=:all: \
-                  --no-deps \
-                  "$clean_req" || echo "  > Could not force 10.9 binary for '$clean_req', falling back to standard install later."
-            done
-            
-            # Install any specific wheels we managed to find
-            if ls manual_wheels/*.whl 1> /dev/null 2>&1; then
-                echo "Installing downloaded wheels:"
-                ls -l manual_wheels
-                python -m pip install manual_wheels/*.whl
-            else
-                echo "No force-compatible wheels found."
-            fi
-            
-            # Now run the standard install to catch anything we missed or couldn't force
-            python -m pip install -r requirements.txt
-
-          else
-            # Standard install for Windows, Linux, and macOS ARM64
-            python -m pip install -r requirements.txt
-          fi
-          
+          python -m pip install -r requirements.txt
           python -m pip install --upgrade -r requirements-build-pyinstaller.txt
 
       - name: Get version details from tag
