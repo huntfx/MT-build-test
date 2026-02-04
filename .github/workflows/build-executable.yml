@@ -31,7 +31,7 @@ jobs:
             upx_suffix: amd64_linux
             exe_suffix: ''
           - platform: macos
-            os: macos-13
+            os: macos-15-intel
             architecture: x64
             upx_suffix: '' # UPX is problematic with macOS
             exe_suffix: '.app'
