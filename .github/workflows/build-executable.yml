@@ -52,10 +52,21 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python 3.11 ${{ matrix.architecture }}
+        if: matrix.platform != 'macos'
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
           architecture: ${{ matrix.architecture }}
+
+      - name: Install Python 3.11 ${{ matrix.architecture }} (macOS)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          PYTHON_VER="3.11.9"
+          curl -L "https://www.python.org/ftp/python/${PYTHON_VER}/python-${PYTHON_VER}-macos11.pkg" -o "python.pkg"
+          sudo installer -pkg python.pkg -target /
+          echo "/Library/Frameworks/Python.framework/Versions/3.11/bin" >> $GITHUB_PATH
+          sudo ln -sf /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 /usr/local/bin/python
 
       - name: Create virtual environment
         shell: bash
