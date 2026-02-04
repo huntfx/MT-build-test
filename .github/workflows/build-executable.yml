@@ -122,34 +122,38 @@ jobs:
 
           # Handle macOS Intel compatibility explicitly
           if [[ "${{ matrix.platform }}" == "macos" && "${{ matrix.architecture }}" == "x64" ]]; then
-            echo "Manually fetching macOS 10.9+ compatible wheels for Intel..."
+            echo "Attempting to manually fetch macOS 10.9+ compatible wheels for ALL dependencies..."
             
-            # Create a directory to hold the specific wheels
             mkdir -p manual_wheels
             
-            # Force download of the 10_9 compatible wheels for the problematic packages.
-            # We use --no-deps so it only grabs the specific whl files we ask for.
-            python -m pip download \
-              --dest manual_wheels \
-              --platform macosx_10_9_x86_64 \
-              --only-binary=:all: \
-              --no-deps \
-              "numpy==2.2.1" \
-              "scipy==1.14.1"
+            # Iterate over requirements to try and download compatible binaries for each.
+            # We filter out comments and empty lines.
+            grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
+                echo "Checking compatibility for: $line"
+                # Try to download specific platform wheel.
+                # If this fails (e.g. no binary wheel, or specific platform not available), we continue.
+                python -m pip download \
+                  --dest manual_wheels \
+                  --platform macosx_11_0_x86_64 \
+                  --only-binary=:all: \
+                  --no-deps \
+                  "$line" || echo "  > Could not force 11.0 binary for '$line', falling back to standard install later."
+            done
             
-            # Install these specific wheels first
-            echo "Installing manually downloaded wheels:"
-            ls -l manual_wheels
-            python -m pip install manual_wheels/*.whl
+            # Install any specific wheels we managed to find
+            if ls manual_wheels/*.whl 1> /dev/null 2>&1; then
+                echo "Installing force-compatible wheels:"
+                ls -l manual_wheels
+                python -m pip install manual_wheels/*.whl
+            else
+                echo "No force-compatible wheels found."
+            fi
             
-            # Now install the rest of requirements.txt. 
-            # pip will see numpy and scipy are already installed and skip them.
-            python -m pip install -r requirements.txt
-            
-          else
-            # Standard install for Windows, Linux, and macOS ARM64
-            python -m pip install -r requirements.txt
+            # Install the rest normally (handles missing dependencies, source packages, etc.)
+            # pip will skip packages already installed above unless upgrades are needed.
+            echo "Completing installation with standard pip install..."
           fi
+          python -m pip install -r requirements.txt
 
           echo "--- Installing build requirements ---"
           python -m pip install --upgrade -r requirements-build-pyinstaller.txt
