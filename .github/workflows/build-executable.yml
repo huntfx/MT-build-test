@@ -241,7 +241,7 @@ jobs:
           cd dist
           ZIP_NAME="${FULL_EXE_NAME%.*}.zip"
           echo "Zipping $FULL_EXE_NAME into $ZIP_NAME..."
-          zip -r -y "$ZIP_NAME" "$FULL_EXE_NAME"
+          ditto -c -k --keepParent "$FULL_EXE_NAME" "$ZIP_NAME"
           echo "FULL_EXE_NAME=$ZIP_NAME" >> $GITHUB_ENV
 
       - name: Attach Main Executable to Release
