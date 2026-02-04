@@ -120,13 +120,36 @@ jobs:
             source .venv/bin/activate
           fi
 
-          if [[ "${{ matrix.platform }}" == "macos" ]]; then
-            if [[ "${{ matrix.architecture }}" == "x64" ]]; then
-              export _PYTHON_HOST_PLATFORM=macosx-11.0-x86_64
-            fi
+          # Handle macOS Intel compatibility explicitly
+          if [[ "${{ matrix.platform }}" == "macos" && "${{ matrix.architecture }}" == "x64" ]]; then
+            echo "Manually fetching macOS 10.9+ compatible wheels for Intel..."
+            
+            # Create a directory to hold the specific wheels
+            mkdir -p manual_wheels
+            
+            # Force download of the 10_9 compatible wheels for the problematic packages.
+            # We use --no-deps so it only grabs the specific whl files we ask for.
+            python -m pip download \
+              --dest manual_wheels \
+              --platform macosx_10_9_x86_64 \
+              --only-binary=:all: \
+              --no-deps \
+              "numpy==2.2.1" \
+              "scipy==1.14.1"
+            
+            # Install these specific wheels first
+            echo "Installing manually downloaded wheels:"
+            ls -l manual_wheels
+            python -m pip install manual_wheels/*.whl
+            
+            # Now install the rest of requirements.txt. 
+            # pip will see numpy and scipy are already installed and skip them.
+            python -m pip install -r requirements.txt
+            
+          else
+            # Standard install for Windows, Linux, and macOS ARM64
+            python -m pip install -r requirements.txt
           fi
-          echo "--- Installing main requirements ---"
-          python -m pip install --upgrade -r requirements.txt
 
           echo "--- Installing build requirements ---"
           python -m pip install --upgrade -r requirements-build-pyinstaller.txt
