@@ -20,16 +20,16 @@ jobs:
       matrix:
         # 32 bit python is not included as PySide6 is not compatible
         include:
-          - platform: windows
-            os: windows-latest
-            architecture: x64
-            upx_suffix: win64
-            exe_suffix: .exe
-          - platform: linux
-            os: ubuntu-latest
-            architecture: x64
-            upx_suffix: amd64_linux
-            exe_suffix: ''
+          #- platform: windows
+          #  os: windows-latest
+          #  architecture: x64
+          #  upx_suffix: win64
+          #  exe_suffix: .exe
+          #- platform: linux
+          #  os: ubuntu-latest
+          #  architecture: x64
+          #  upx_suffix: amd64_linux
+          #  exe_suffix: ''
           - platform: macos
             os: macos-15-intel
             architecture: x64
@@ -114,51 +114,30 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            source .venv/Scripts/activate
-          else
-            source .venv/bin/activate
-          fi
-
+          python -m pip install --upgrade pip
+          
           # Handle macOS Intel compatibility explicitly
           if [[ "${{ matrix.platform }}" == "macos" && "${{ matrix.architecture }}" == "x64" ]]; then
-            echo "Attempting to manually fetch macOS 10.9+ compatible wheels for ALL dependencies..."
-            
+            echo "Manually fetching macOS 10.9+ compatible wheels for dependencies..."
             mkdir -p manual_wheels
             
-            # Iterate over requirements to try and download compatible binaries for each.
-            # We filter out comments and empty lines.
-            grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
-                echo "Checking compatibility for: $line"
-                # Try to download specific platform wheel.
-                # If this fails (e.g. no binary wheel, or specific platform not available), we continue.
-                python -m pip download \
-                  --dest manual_wheels \
-                  --platform macosx_11_0_x86_64 \
-                  --only-binary=:all: \
-                  --no-deps \
-                  "$line" || echo "  > Could not force 11.0 binary for '$line', falling back to standard install later."
-            done
+            # Download specific platform wheels for all requirements
+            # This ensures we get versions compatible with older macOS, as defined in requirements.txt
+            python -m pip download \
+              --dest manual_wheels \
+              --platform macosx_10_9_x86_64 \
+              --only-binary=:all: \
+              -r requirements.txt
             
-            # Install any specific wheels we managed to find
-            if ls manual_wheels/*.whl 1> /dev/null 2>&1; then
-                echo "Installing force-compatible wheels:"
-                ls -l manual_wheels
-                python -m pip install manual_wheels/*.whl
-            else
-                echo "No force-compatible wheels found."
-            fi
+            echo "Installing downloaded wheels..."
+            python -m pip install manual_wheels/*.whl
             
-            # Install the rest normally (handles missing dependencies, source packages, etc.)
-            # pip will skip packages already installed above unless upgrades are needed.
-            echo "Completing installation with standard pip install..."
+          else
+            # Standard install for Windows, Linux, and macOS ARM64
+            python -m pip install -r requirements.txt
           fi
-          python -m pip install -r requirements.txt
-
-          echo "--- Installing build requirements ---"
+          
           python -m pip install --upgrade -r requirements-build-pyinstaller.txt
-
-          deactivate
 
       - name: Get version details from tag
         if: github.ref_type == 'tag'
