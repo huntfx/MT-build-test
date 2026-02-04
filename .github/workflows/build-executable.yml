@@ -116,30 +116,28 @@ jobs:
         if: matrix.platform == 'macos' && matrix.architecture == 'x64'
         shell: bash
         run: |
-          python -m pip install --upgrade pip
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+
           echo "Attempting to manually fetch macOS 10.9+ compatible wheels for dependencies..."
           mkdir -p manual_wheels
-          
-          # Iterate over requirements to try and download compatible binaries for each.
-          grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
-              # Remove environment markers (everything after ';') to avoid pip CLI parsing errors
-              clean_req=$(echo "$line" | cut -d';' -f1 | xargs)
-              
-              # If the line became empty (e.g. it was just a comment or marker), skip it
-              if [[ -z "$clean_req" ]]; then continue; fi
 
-              echo "Checking compatibility for: $clean_req (Original: $line)"
-              
-              # Try to download specific platform wheel.
-              # If this fails (e.g. no binary wheel, or specific platform not available), we continue.
+          # Iterate over requirements to try and download compatible binaries for each
+          grep -vE '^\s*#|^\s*$' requirements.txt | while read -r line; do
+              req_line=$(echo "$line" | xargs)
+
+              echo "Checking compatibility for: $req_line"
               python -m pip download \
                 --dest manual_wheels \
                 --platform macosx_10_9_x86_64 \
                 --only-binary=:all: \
                 --no-deps \
-                "$clean_req" || echo "  > Could not force 10.9 binary for '$clean_req', falling back to standard install later."
-          done
-          
+                "$req_line" || echo "  > Could not force 10.9 binary for this requirement (or not needed for macOS)."
+              done
+
           # Install any specific wheels we managed to find
           if ls manual_wheels/*.whl 1> /dev/null 2>&1; then
               echo "Installing downloaded wheels:"
@@ -148,6 +146,8 @@ jobs:
           else
               echo "No force-compatible wheels found."
           fi
+
+          deactivate
           
       - name: Install dependencies
         shell: bash
