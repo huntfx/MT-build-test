@@ -12,7 +12,7 @@ from mousetracks2 import __version__ as version
 from mousetracks2.constants import PACKAGE_IDENTIFIER
 from mousetracks2.utils.update import generate_exe_name
 
-target_name = generate_exe_name(with_extension=False)
+target_name = os.environ.get('EXE_BASENAME', generate_exe_name(with_extension=False))
 
 a = Analysis(
     ['launch.py'],
