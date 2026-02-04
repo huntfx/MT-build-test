@@ -17,4 +17,4 @@ kept simple. The recommend commit message format is as follows:
     - Fixed potential crash when thing happens ({commit_sha})
 """
 
-VERSION = '3.1.12'
+VERSION = '3.1.13'
