@@ -12,6 +12,8 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     permissions: write-all
+    env:
+      MACOSX_DEPLOYMENT_TARGET: 11.0  # Lowest version compatible with PySide 6.7
 
     strategy:
       fail-fast: false
@@ -28,6 +30,11 @@ jobs:
             architecture: x64
             upx_suffix: amd64_linux
             exe_suffix: ''
+          - platform: macos
+            os: macos-13
+            architecture: x64
+            upx_suffix: '' # UPX is problematic with macOS
+            exe_suffix: '.app'
 
     steps:
       - name: Checkout partial repository
@@ -164,6 +171,11 @@ jobs:
       - name: Install UPX
         shell: bash
         run: |
+          # Skip if UPX suffix is empty
+          if [[ -z "${{ matrix.upx_suffix }}" ]]; then
+            echo "UPX suffix is empty. Skipping UPX installation."
+            exit 0
+          fi
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             UPX_URL="https://github.com/upx/upx/releases/download/v5.0.1/upx-5.0.1-${{ matrix.upx_suffix }}.zip"
             curl -L -o upx.zip "$UPX_URL"
@@ -221,6 +233,19 @@ jobs:
               echo ::error::Installer creation failed!
               exit /b 1
           )
+
+      - name: Package macOS App
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          cd dist
+          # The .app is a folder, so we zip it up for distribution
+          zip -r ${{ env.FULL_EXE_NAME }}.zip ${{ env.FULL_EXE_NAME }}.app
+
+          cd dist
+          ZIP_NAME="${FULL_EXE_NAME%.app}.zip"
+          zip -r -y "$ZIP_NAME" "$FULL_EXE_NAME"
+          echo "FULL_EXE_NAME=$ZIP_NAME" >> $GITHUB_ENV
 
       - name: Attach Main Executable to Release
         if: github.event_name == 'release'

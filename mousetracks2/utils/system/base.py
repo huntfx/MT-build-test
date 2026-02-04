@@ -5,11 +5,15 @@ Some of these are placeholders for use if a feature is missing support.
 import queue
 import threading
 import time
+from pathlib import Path
 from typing import Any, Self
 
 from screeninfo import get_monitors as _get_monitors
 
 from ...types import Rect, RectList
+
+
+SUPPORTS_TRAY = True
 
 
 def get_autostart() -> str | None:
@@ -120,3 +124,11 @@ class MonitorEventsListener(threading.Thread):
             except queue.Empty:
                 return count > 0
             count += 1
+
+
+def hide_child_process() -> None:
+    """This is here to allow macOS to hide the child processes."""
+
+
+def prepare_application_icon(icon_path: Path | str) -> None:
+    """This runs in the GUI process."""
