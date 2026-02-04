@@ -119,6 +119,7 @@ def _get_platform_suffix() -> str:
     else:
         raise NotImplementedError(sys.platform)
 
+    print('PLATFORM MACHINE', platform.machine())
     if platform.machine().lower() in ('arm64', 'aarch64'):
         arch = 'arm64'
     else:
